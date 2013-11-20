@@ -180,7 +180,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	switch (message) 
 	{
 		case WM_CREATE:
-			SetTimer( hWnd, 1, 40, NULL );
 			break;
 		case WM_TIMER:
 			outImage.Modify();
@@ -194,6 +193,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				case IDM_ABOUT:
 					DialogBox(hInst, (LPCTSTR)IDD_ABOUTBOX, hWnd, (DLGPROC)About);
+					break;
+				case ID_FILE_PLAY:
+					SetTimer( hWnd, 1, 40, NULL );
+					break;
+				case ID_FILE_STOP:
+					KillTimer (hWnd, 1);
 					break;
 				case ID_MODIFY_IMAGE:
 					outImage.Modify();
