@@ -3,6 +3,8 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Image", "Image.vcxproj", "{3F0748F7-5A45-4DF6-9BA3-23CBAA7C6551}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PCMPlay", "..\Play_sound\PCMPlay.vcxproj", "{7F3ED7FB-D0E4-4F5E-826B-6CBCF750329F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -13,6 +15,10 @@ Global
 		{3F0748F7-5A45-4DF6-9BA3-23CBAA7C6551}.Debug|Win32.Build.0 = Debug|Win32
 		{3F0748F7-5A45-4DF6-9BA3-23CBAA7C6551}.Release|Win32.ActiveCfg = Release|Win32
 		{3F0748F7-5A45-4DF6-9BA3-23CBAA7C6551}.Release|Win32.Build.0 = Release|Win32
+		{7F3ED7FB-D0E4-4F5E-826B-6CBCF750329F}.Debug|Win32.ActiveCfg = Debug|Win32
+		{7F3ED7FB-D0E4-4F5E-826B-6CBCF750329F}.Debug|Win32.Build.0 = Debug|Win32
+		{7F3ED7FB-D0E4-4F5E-826B-6CBCF750329F}.Release|Win32.ActiveCfg = Release|Win32
+		{7F3ED7FB-D0E4-4F5E-826B-6CBCF750329F}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

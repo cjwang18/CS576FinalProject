@@ -179,6 +179,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 	switch (message) 
 	{
+		case WM_CREATE:
+			SetTimer( hWnd, 1, 40, NULL );
+			break;
+		case WM_TIMER:
+			outImage.Modify();
+			InvalidateRect(hWnd, &rt, false);
+			break;
 		case WM_COMMAND:
 			wmId    = LOWORD(wParam); 
 			wmEvent = HIWORD(wParam); 
@@ -186,17 +193,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			switch (wmId)
 			{
 				case IDM_ABOUT:
-				   DialogBox(hInst, (LPCTSTR)IDD_ABOUTBOX, hWnd, (DLGPROC)About);
-				   break;
+					DialogBox(hInst, (LPCTSTR)IDD_ABOUTBOX, hWnd, (DLGPROC)About);
+					break;
 				case ID_MODIFY_IMAGE:
-				   outImage.Modify();
-				   InvalidateRect(hWnd, &rt, false); 
-				   break;
+					outImage.Modify();
+					InvalidateRect(hWnd, &rt, false);
+					break;
 				case IDM_EXIT:
-				   DestroyWindow(hWnd);
-				   break;
+					DestroyWindow(hWnd);
+					break;
 				default:
-				   return DefWindowProc(hWnd, message, wParam, lParam);
+					return DefWindowProc(hWnd, message, wParam, lParam);
 			}
 			break;
 		case WM_PAINT:
