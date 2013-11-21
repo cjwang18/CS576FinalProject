@@ -57,6 +57,9 @@ CSoundManager* g_pSoundManager = NULL;
 CSound*        g_pSound = NULL;
 BOOL           g_bBufferPaused;
 TCHAR		   AudioPath[_MAX_PATH] = TEXT("");
+HANDLE queryTimer = NULL;
+int queryTimerArg = 123;
+BOOL	queryPlaying = false;
 
 
 // Foward declarations of functions included in this code module:
@@ -64,6 +67,7 @@ ATOM				MyRegisterClass(HINSTANCE hInstance);
 BOOL				InitInstance(HINSTANCE, int);
 LRESULT CALLBACK	WndProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK	About(HWND, UINT, WPARAM, LPARAM);
+VOID CALLBACK TimerRoutine(PVOID, BOOLEAN);
 
 
 
@@ -393,14 +397,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 		case WM_TIMER:
-			switch(wParam) {
+			/*switch(wParam) {
 				case ID_QUERY_TIMER:
 					inImage.Modify();
 					break;
 				case ID_MATCH_TIMER:
 					outImage.Modify();
 					break;
-			}
+			}*/
 			InvalidateRect(hWnd, &rt, false);
 			break;
 		case WM_COMMAND:
@@ -413,32 +417,53 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					DialogBox(hInst, (LPCTSTR)IDD_ABOUTBOX, hWnd, (DLGPROC)About);
 					break;
 				case IDC_QUERY_PLAY_BUTTON:
-					SetTimer(hWnd, ID_QUERY_TIMER, 32.5, NULL );
-					// The 'play'/'pause' button was pressed
-                    if( FAILED( hr = OnPlaySound( hWnd ) ) )
-                    {
-                        DXTRACE_ERR( TEXT("OnPlaySound"), hr );
-                        MessageBox( hWnd, "Error playing DirectSound buffer. "
-                                    "Sample will now exit.", "DirectSound Sample", 
-                                    MB_OK | MB_ICONERROR );
-                        EndDialog( hWnd, IDABORT );
-                    }
+					SetTimer(hWnd, ID_QUERY_TIMER, 30, NULL );
+					if (!queryPlaying) {
+						queryPlaying = true;
+						CreateTimerQueueTimer(
+							&queryTimer,
+							NULL,
+							(WAITORTIMERCALLBACK)TimerRoutine,
+							&hWnd,
+							0,
+							40,
+							WT_EXECUTEINTIMERTHREAD);
+					
+						// The 'play'/'pause' button was pressed
+						if( FAILED( hr = OnPlaySound( hWnd ) ) )
+						{
+							DXTRACE_ERR( TEXT("OnPlaySound"), hr );
+							MessageBox( hWnd, "Error playing DirectSound buffer. "
+										"Sample will now exit.", "DirectSound Sample", 
+										MB_OK | MB_ICONERROR );
+							EndDialog( hWnd, IDABORT );
+						}
+					}
 					break;
 				case IDC_QUERY_PAUSE_BUTTON:
-					if( g_pSound )
-                        g_pSound->Stop();
-					KillTimer (hWnd, ID_QUERY_TIMER);
+					if (queryPlaying) {
+						queryPlaying = false;
+						if( g_pSound )
+							g_pSound->Stop();
+						KillTimer (hWnd, ID_QUERY_TIMER);
+
+						DeleteTimerQueueTimer(NULL, queryTimer, NULL);
+					}
 					break;
 				case IDC_QUERY_STOP_BUTTON:
-					if( g_pSound )
-                    {
-                        g_pSound->Stop();
-                        g_pSound->Reset();
-                    }
-					KillTimer (hWnd, ID_QUERY_TIMER);
-					inImage.setCurrentFrame(0);
-					inImage.Modify();
-					InvalidateRect(hWnd, &rt, false);
+					if (queryPlaying) {
+						DeleteTimerQueueTimer(NULL, queryTimer, NULL);
+					}
+						if( g_pSound )
+						{
+							g_pSound->Stop();
+							g_pSound->Reset();
+						}
+						KillTimer (hWnd, ID_QUERY_TIMER);
+						inImage.setCurrentFrame(0);
+						inImage.Modify();
+						InvalidateRect(hWnd, &rt, false);
+						queryPlaying = false;
 					break;
 				case IDC_MATCH_PLAY_BUTTON:
 					SetTimer(hWnd, ID_MATCH_TIMER, 40, NULL );
@@ -453,7 +478,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					InvalidateRect(hWnd, &rt, false);
 					break;
 				case ID_MODIFY_IMAGE:
-					outImage.Modify();
+					//outImage.Modify();
 					InvalidateRect(hWnd, &rt, false);
 					break;
 				case IDM_EXIT:
@@ -467,11 +492,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				hdc = BeginPaint(hWnd, &ps);
 				// TODO: Add any drawing code here...
-				char text[1000];
+				/*char text[1000];
 				strcpy(text, "Original image (Left)  Image after modification (Right)\n");
 				DrawText(hdc, text, strlen(text), &rt, DT_LEFT);
 				strcpy(text, "\nUpdate program with your code to modify input image");
-				DrawText(hdc, text, strlen(text), &rt, DT_LEFT);
+				DrawText(hdc, text, strlen(text), &rt, DT_LEFT);*/
 
 				BITMAPINFO bmi;
 				CBitmap bitmap;
@@ -507,6 +532,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
    return 0;
 }
 
+
+
+VOID CALLBACK TimerRoutine(PVOID lpParam, BOOLEAN TimerOrWaitFired)
+{
+	/*RECT rt;
+	GetClientRect(*(HWND*)lpParam, &rt);*/
+    inImage.Modify();
+	//InvalidateRect(*(HWND*)lpParam, &rt, false);
+}
 
 
 
