@@ -426,13 +426,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					break;
 				case IDC_QUERY_PAUSE_BUTTON:
 					if( g_pSound )
-                    {
                         g_pSound->Stop();
-                        //g_pSound->Reset();
-                    }
 					KillTimer (hWnd, ID_QUERY_TIMER);
 					break;
 				case IDC_QUERY_STOP_BUTTON:
+					if( g_pSound )
+                    {
+                        g_pSound->Stop();
+                        g_pSound->Reset();
+                    }
 					KillTimer (hWnd, ID_QUERY_TIMER);
 					inImage.setCurrentFrame(0);
 					inImage.Modify();
