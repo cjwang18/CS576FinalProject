@@ -56,11 +56,11 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 	HACCEL hAccelTable;
 
 	// Read in the image and its copy
-	int w, h;
 	char ImagePath[_MAX_PATH];
-	sscanf(lpCmdLine, "%s %d %d", &ImagePath, &w, &h);
-	inImage.setWidth(w);
-	inImage.setHeight(h);
+	char AudioPath[_MAX_PATH];
+	sscanf(lpCmdLine, "%s %d %d", &ImagePath, &AudioPath);
+	inImage.setWidth(352);
+	inImage.setHeight(288);
 	if ( strstr(ImagePath, ".rgb" )==NULL )
 	{ 
 		AfxMessageBox( "Image has to be a '.rgb' file\nUsage - Image.exe image.rgb w h");
