@@ -13,8 +13,23 @@
 
 // Include class files
 #include "Image.h"
+#include <Windows.h>
 
 #define MAX_LOADSTRING 100
+
+// UI TEST
+#define WINDOW_WIDTH 800
+#define WINDOW_HEIGHT 600
+#define BUTTON_WIDTH 100
+#define BUTTON_HEIGHT 30
+#define IDC_QUERY_PLAY_BUTTON	1001
+#define IDC_QUERY_PAUSE_BUTTON	1002
+#define IDC_QUERY_STOP_BUTTON	1003
+#define IDC_MATCH_PLAY_BUTTON	1004
+#define IDC_MATCH_PAUSE_BUTTON	1005
+#define IDC_MATCH_STOP_BUTTON	1006
+#define ID_QUERY_TIMER 2001
+#define ID_MATCH_TIMER 2002
 
 // Global Variables:
 MyImage			inImage, outImage;				// image objects
@@ -143,7 +158,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    hInst = hInstance; // Store instance handle in our global variable
 
    hWnd = CreateWindow(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, NULL, NULL, hInstance, NULL);
+	   CW_USEDEFAULT, 0, WINDOW_WIDTH, WINDOW_HEIGHT, NULL, NULL, hInstance, NULL);
 
    if (!hWnd)
    {
@@ -180,9 +195,104 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	switch (message) 
 	{
 		case WM_CREATE:
-			break;
+		{
+			// Create the QUERY PLAY button
+			HWND hWndQueryPlayButton=CreateWindowEx(NULL,
+				"BUTTON",
+				"PLAY",
+				WS_TABSTOP|WS_VISIBLE|
+				WS_CHILD|BS_DEFPUSHBUTTON,
+				25,
+				190 + inImage.getHeight(),
+				BUTTON_WIDTH,
+				BUTTON_HEIGHT,
+				hWnd,
+				(HMENU)IDC_QUERY_PLAY_BUTTON,
+				GetModuleHandle(NULL),
+				NULL);
+			
+			// Create the QUERY PAUSE button
+			HWND hWndQueryPauseButton=CreateWindowEx(NULL,
+				"BUTTON",
+				"PAUSE",
+				WS_TABSTOP|WS_VISIBLE|
+				WS_CHILD|BS_DEFPUSHBUTTON,
+				25 + BUTTON_WIDTH + 26,
+				190 + inImage.getHeight(),
+				BUTTON_WIDTH,
+				BUTTON_HEIGHT,
+				hWnd,
+				(HMENU)IDC_QUERY_PAUSE_BUTTON,
+				GetModuleHandle(NULL),
+				NULL);
+			// Create the QUERY STOP button
+			HWND hWndQueryStopButton=CreateWindowEx(NULL,
+				"BUTTON",
+				"STOP",
+				WS_TABSTOP|WS_VISIBLE|
+				WS_CHILD|BS_DEFPUSHBUTTON,
+				25 + (BUTTON_WIDTH + 26) * 2,
+				190 + inImage.getHeight(),
+				BUTTON_WIDTH,
+				BUTTON_HEIGHT,
+				hWnd,
+				(HMENU)IDC_QUERY_STOP_BUTTON,
+				GetModuleHandle(NULL),
+				NULL);
+			// Create the MATCH PLAY button
+			HWND hWndMatchPlayButton=CreateWindowEx(NULL,
+				"BUTTON",
+				"PLAY",
+				WS_TABSTOP|WS_VISIBLE|
+				WS_CHILD|BS_DEFPUSHBUTTON,
+				outImage.getWidth()+55,
+				190 + outImage.getHeight(),
+				BUTTON_WIDTH,
+				BUTTON_HEIGHT,
+				hWnd,
+				(HMENU)IDC_MATCH_PLAY_BUTTON,
+				GetModuleHandle(NULL),
+				NULL);
+			
+			// Create the MATCH PAUSE button
+			HWND hWndMatchPauseButton=CreateWindowEx(NULL,
+				"BUTTON",
+				"PAUSE",
+				WS_TABSTOP|WS_VISIBLE|
+				WS_CHILD|BS_DEFPUSHBUTTON,
+				outImage.getWidth()+55 + BUTTON_WIDTH + 26,
+				190 + outImage.getHeight(),
+				BUTTON_WIDTH,
+				BUTTON_HEIGHT,
+				hWnd,
+				(HMENU)IDC_MATCH_PAUSE_BUTTON,
+				GetModuleHandle(NULL),
+				NULL);
+			// Create the MATCH STOP button
+			HWND hWndMatchStopButton=CreateWindowEx(NULL,
+				"BUTTON",
+				"STOP",
+				WS_TABSTOP|WS_VISIBLE|
+				WS_CHILD|BS_DEFPUSHBUTTON,
+				outImage.getWidth()+55 + (BUTTON_WIDTH + 26) * 2,
+				190 + outImage.getHeight(),
+				BUTTON_WIDTH,
+				BUTTON_HEIGHT,
+				hWnd,
+				(HMENU)IDC_MATCH_STOP_BUTTON,
+				GetModuleHandle(NULL),
+				NULL);
+		}
+		break;
 		case WM_TIMER:
-			outImage.Modify();
+			switch(wParam) {
+				case ID_QUERY_TIMER:
+					inImage.Modify();
+					break;
+				case ID_MATCH_TIMER:
+					outImage.Modify();
+					break;
+			}
 			InvalidateRect(hWnd, &rt, false);
 			break;
 		case WM_COMMAND:
@@ -194,11 +304,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				case IDM_ABOUT:
 					DialogBox(hInst, (LPCTSTR)IDD_ABOUTBOX, hWnd, (DLGPROC)About);
 					break;
-				case ID_FILE_PLAY:
-					SetTimer( hWnd, 1, 40, NULL );
+				case IDC_QUERY_PLAY_BUTTON:
+					SetTimer(hWnd, ID_QUERY_TIMER, 40, NULL );
 					break;
-				case ID_FILE_STOP:
-					KillTimer (hWnd, 1);
+				case IDC_QUERY_PAUSE_BUTTON:
+					KillTimer (hWnd, ID_QUERY_TIMER);
+					break;
+				case IDC_QUERY_STOP_BUTTON:
+					KillTimer (hWnd, ID_QUERY_TIMER);
+					inImage.setCurrentFrame(0);
+					inImage.Modify();
+					InvalidateRect(hWnd, &rt, false);
+					break;
+				case IDC_MATCH_PLAY_BUTTON:
+					SetTimer(hWnd, ID_MATCH_TIMER, 40, NULL );
+					break;
+				case IDC_MATCH_PAUSE_BUTTON:
+					KillTimer(hWnd, ID_MATCH_TIMER);
+					break;
+				case IDC_MATCH_STOP_BUTTON:
+					KillTimer (hWnd, ID_MATCH_TIMER);
+					outImage.setCurrentFrame(0);
+					outImage.Modify();
+					InvalidateRect(hWnd, &rt, false);
 					break;
 				case ID_MODIFY_IMAGE:
 					outImage.Modify();
@@ -233,12 +361,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				bmi.bmiHeader.biSizeImage = inImage.getWidth()*inImage.getHeight();
 
 				SetDIBitsToDevice(hdc,
-								  0,100,inImage.getWidth(),inImage.getHeight(),
+								  25,175,inImage.getWidth(),inImage.getHeight(),
 								  0,0,0,inImage.getHeight(),
 								  inImage.getImageData(),&bmi,DIB_RGB_COLORS);
 
 				SetDIBitsToDevice(hdc,
-								  outImage.getWidth()+50,100,outImage.getWidth(),outImage.getHeight(),
+								  outImage.getWidth()+55,175,outImage.getWidth(),outImage.getHeight(),
 								  0,0,0,outImage.getHeight(),
 								  outImage.getImageData(),&bmi,DIB_RGB_COLORS);
 
