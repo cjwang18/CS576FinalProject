@@ -13,6 +13,15 @@
 #define IDI_SMALL                       108
 #define IDC_IMAGE                       109
 #define IDR_MAINFRAME                   128
+#define IDC_QUERY_PLAY_BUTTON           1001
+#define IDC_QUERY_PAUSE_BUTTON          1002
+#define IDC_QUERY_STOP_BUTTON           1003
+#define IDC_MATCH_PLAY_BUTTON           1004
+#define IDC_MATCH_PAUSE_BUTTON          1005
+#define IDC_MATCH_STOP_BUTTON           1006
+#define ID_QUERY_TIMER                  2001
+#define ID_MATCH_TIMER                  2002
+#define ID_QUERY_AUDIO_TIMER            2003
 #define ID_MODIFY_IMAGE                 32771
 #define ID_IMAGE_OPEN                   32772
 #define ID_FILE_PLAY                    32773
@@ -26,7 +35,7 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        129
-#define _APS_NEXT_COMMAND_VALUE         32778
+#define _APS_NEXT_COMMAND_VALUE         32781
 #define _APS_NEXT_CONTROL_VALUE         1000
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
