@@ -38,6 +38,7 @@ local.properties
 
 # CS576 Specific Files
 *.rgb
+*.wav
 
 # User-specific files
 *.suo

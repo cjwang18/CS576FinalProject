@@ -9,11 +9,23 @@
 // Code used by students as starter code to display and modify images
 //
 //*****************************************************************************
+#define STRICT
+typedef void *PVOID;
+typedef void * POINTER_64;// PVOID64;
+
 
 
 // Include class files
 #include "Image.h"
 #include <Windows.h>
+#include "basetsd.h"
+#include <commdlg.h>
+#include <mmreg.h>
+#include "dxsdk_include/dxerr8.h"
+#include "dxsdk_include/dsound.h"
+#include "resource.h"
+#include "CS576SoundUtil.h"
+#include "DXUtil.h"
 
 #define MAX_LOADSTRING 100
 
@@ -30,12 +42,22 @@
 #define IDC_MATCH_STOP_BUTTON	1006
 #define ID_QUERY_TIMER 2001
 #define ID_MATCH_TIMER 2002
+#define ID_QUERY_AUDIO_TIMER 2003
 
 // Global Variables:
 MyImage			inImage, outImage;				// image objects
 HINSTANCE		hInst;							// current instance
 TCHAR szTitle[MAX_LOADSTRING];					// The title bar text
 TCHAR szWindowClass[MAX_LOADSTRING];			// The title bar text
+
+//-----------------------------------------------------------------------------
+// Defines, constants, and global variables
+//-----------------------------------------------------------------------------
+CSoundManager* g_pSoundManager = NULL;
+CSound*        g_pSound = NULL;
+BOOL           g_bBufferPaused;
+TCHAR		   AudioPath[_MAX_PATH] = TEXT("");
+
 
 // Foward declarations of functions included in this code module:
 ATOM				MyRegisterClass(HINSTANCE hInstance);
@@ -57,8 +79,8 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 
 	// Read in the image and its copy
 	char ImagePath[_MAX_PATH];
-	char AudioPath[_MAX_PATH];
-	sscanf(lpCmdLine, "%s %d %d", &ImagePath, &AudioPath);
+
+	sscanf(lpCmdLine, "%s %s", &ImagePath, &AudioPath);
 	inImage.setWidth(352);
 	inImage.setHeight(288);
 	if ( strstr(ImagePath, ".rgb" )==NULL )
@@ -171,6 +193,50 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    return TRUE;
 }
 
+HRESULT OnPlaySound( HWND hDlg ) 
+{
+    HRESULT hr;
+
+    BOOL bLooped = true;
+
+    if( g_bBufferPaused )
+    {
+        // Play the buffer since it is currently paused
+        DWORD dwFlags = bLooped ? DSBPLAY_LOOPING : 0L;
+        if( FAILED( hr = g_pSound->Play( 0, dwFlags ) ) )
+            return DXTRACE_ERR( TEXT("Play"), hr );
+
+        // Update the UI controls to show the sound as playing
+        g_bBufferPaused = FALSE;
+        //EnablePlayUI( hDlg, FALSE );
+    }
+    else
+    {
+        if( g_pSound->IsSoundPlaying() )
+        {
+            // To pause, just stop the buffer, but don't reset the position
+            if( g_pSound )
+                g_pSound->Stop();
+
+            g_bBufferPaused = TRUE;
+            //SetDlgItemText( hDlg, IDC_PLAY, "Play" );
+        }
+        else
+        {
+            // The buffer is not playing, so play it again
+            DWORD dwFlags = bLooped ? DSBPLAY_LOOPING : 0L;
+            if( FAILED( hr = g_pSound->Play( 0, dwFlags ) ) )
+                return DXTRACE_ERR( TEXT("Play"), hr );
+
+            // Update the UI controls to show the sound as playing
+            g_bBufferPaused = FALSE;
+            //EnablePlayUI( hDlg, FALSE );
+        }
+    }
+
+    return S_OK;
+}
+
 
 //
 //  FUNCTION: WndProc(HWND, unsigned, WORD, LONG)
@@ -192,10 +258,52 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	RECT rt;
 	GetClientRect(hWnd, &rt);
 
+	HRESULT hr;
+
 	switch (message) 
 	{
 		case WM_CREATE:
 		{
+			// Create a static IDirectSound in the CSound class.  
+			// Set coop level to DSSCL_PRIORITY, and set primary buffer 
+			// format to stereo, 22kHz and 16-bit output.
+			g_pSoundManager = new CSoundManager();
+
+			if( FAILED( hr = g_pSoundManager->Initialize( hWnd, DSSCL_PRIORITY, 1, 44100, 16 ) ) )	//  2, 22050, 16
+			{
+				DXTRACE_ERR( TEXT("Initialize"), hr );
+				MessageBox( hWnd, "Error initializing DirectSound.  Sample will now exit.", 
+									"DirectSound Sample", MB_OK | MB_ICONERROR );
+				EndDialog( hWnd, IDABORT );
+				return false;
+			}
+
+			g_bBufferPaused = FALSE;
+
+			// Create a timer, so we can check for when the soundbuffer is stopped
+			SetTimer( hWnd, ID_QUERY_AUDIO_TIMER, 250, NULL );
+
+			if( g_pSound )
+			{
+				g_pSound->Stop();
+				g_pSound->Reset();
+			}
+
+			SAFE_DELETE( g_pSound );
+
+			// Load the wave file into a DirectSound buffer
+			if( FAILED( hr = g_pSoundManager->Create( &g_pSound, AudioPath, 0, GUID_NULL ) ) )
+			{
+				// Not a critical failure, so just update the status
+				DXTRACE_ERR_NOMSGBOX( TEXT("Create"), hr );
+				//SetDlgItemText( hWnd, IDC_FILENAME, TEXT("Could not create sound buffer.") );
+				return false; 
+			}
+
+			
+
+			
+
 			// Create the QUERY PLAY button
 			HWND hWndQueryPlayButton=CreateWindowEx(NULL,
 				"BUTTON",
@@ -305,9 +413,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					DialogBox(hInst, (LPCTSTR)IDD_ABOUTBOX, hWnd, (DLGPROC)About);
 					break;
 				case IDC_QUERY_PLAY_BUTTON:
-					SetTimer(hWnd, ID_QUERY_TIMER, 40, NULL );
+					SetTimer(hWnd, ID_QUERY_TIMER, 32.5, NULL );
+					// The 'play'/'pause' button was pressed
+                    if( FAILED( hr = OnPlaySound( hWnd ) ) )
+                    {
+                        DXTRACE_ERR( TEXT("OnPlaySound"), hr );
+                        MessageBox( hWnd, "Error playing DirectSound buffer. "
+                                    "Sample will now exit.", "DirectSound Sample", 
+                                    MB_OK | MB_ICONERROR );
+                        EndDialog( hWnd, IDABORT );
+                    }
 					break;
 				case IDC_QUERY_PAUSE_BUTTON:
+					if( g_pSound )
+                    {
+                        g_pSound->Stop();
+                        //g_pSound->Reset();
+                    }
 					KillTimer (hWnd, ID_QUERY_TIMER);
 					break;
 				case IDC_QUERY_STOP_BUTTON:
