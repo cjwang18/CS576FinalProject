@@ -40,6 +40,7 @@ typedef void * POINTER_64;// PVOID64;
 #define IDC_MATCH_PLAY_BUTTON	1004
 #define IDC_MATCH_PAUSE_BUTTON	1005
 #define IDC_MATCH_STOP_BUTTON	1006
+#define IDC_MATCH_SLIDER		1007
 #define ID_QUERY_TIMER 2001
 #define ID_MATCH_TIMER 2002
 #define ID_QUERY_AUDIO_TIMER 2003
@@ -61,6 +62,13 @@ HANDLE queryTimer = NULL;
 int queryTimerArg = 123;
 BOOL	queryPlaying = false;
 
+enum PlaybackActions { PLAY, PAUSE, STOP };
+PlaybackActions playbackAction;
+MyImage* videos[2];
+BOOL videoPlaying[2] = {false, false};
+HANDLE videoTimer[2] = {NULL, NULL};
+HWND hWnd;
+int videoIndex[2] = {0, 1};
 
 // Foward declarations of functions included in this code module:
 ATOM				MyRegisterClass(HINSTANCE hInstance);
@@ -68,7 +76,7 @@ BOOL				InitInstance(HINSTANCE, int);
 LRESULT CALLBACK	WndProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK	About(HWND, UINT, WPARAM, LPARAM);
 VOID CALLBACK TimerRoutine(PVOID, BOOLEAN);
-
+VOID PlaybackControl(int, PlaybackActions);
 
 
 // Main entry point for a windows application
@@ -80,6 +88,9 @@ int APIENTRY WinMain(HINSTANCE hInstance,
  	// TODO: Place code here.
 	MSG msg;
 	HACCEL hAccelTable;
+
+	videos[0] = &inImage;
+	videos[1] = &outImage;
 
 	// Read in the image and its copy
 	char ImagePath[_MAX_PATH];
@@ -179,7 +190,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 //
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
-   HWND hWnd;
+   //HWND hWnd;
 
    hInst = hInstance; // Store instance handle in our global variable
 
@@ -306,7 +317,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 			
 
-			
+			HWND hwndTrack = CreateWindowEx( 
+				0, // no extended styles 
+				TRACKBAR_CLASS, // class name 
+				"Trackbar Control", // title (caption) 
+				WS_CHILD | WS_VISIBLE | 
+				TBS_AUTOTICKS | TBS_ENABLESELRANGE, // style 
+				10, 10, // position 
+				200, 30, // size 
+				hWnd, // parent window 
+				(HMENU)IDC_MATCH_SLIDER, // control identifier 
+				GetModuleHandle(NULL), // instance 
+				NULL // no WM_CREATE parameter 
+				); 
+
 
 			// Create the QUERY PLAY button
 			HWND hWndQueryPlayButton=CreateWindowEx(NULL,
@@ -417,42 +441,46 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					DialogBox(hInst, (LPCTSTR)IDD_ABOUTBOX, hWnd, (DLGPROC)About);
 					break;
 				case IDC_QUERY_PLAY_BUTTON:
-					SetTimer(hWnd, ID_QUERY_TIMER, 30, NULL );
-					if (!queryPlaying) {
-						queryPlaying = true;
-						CreateTimerQueueTimer(
-							&queryTimer,
-							NULL,
-							(WAITORTIMERCALLBACK)TimerRoutine,
-							&hWnd,
-							0,
-							40,
-							WT_EXECUTEINTIMERTHREAD);
-					
-						// The 'play'/'pause' button was pressed
-						if( FAILED( hr = OnPlaySound( hWnd ) ) )
-						{
-							DXTRACE_ERR( TEXT("OnPlaySound"), hr );
-							MessageBox( hWnd, "Error playing DirectSound buffer. "
-										"Sample will now exit.", "DirectSound Sample", 
-										MB_OK | MB_ICONERROR );
-							EndDialog( hWnd, IDABORT );
-						}
-					}
+					//SetTimer(hWnd, ID_QUERY_TIMER, 30, NULL );
+					//if (!queryPlaying) {
+					//	videoPlaying[0] = true;
+					//	queryPlaying = true;
+					//	CreateTimerQueueTimer(
+					//		&videoTimer[0],
+					//		NULL,
+					//		(WAITORTIMERCALLBACK)TimerRoutine,
+					//		0,
+					//		0,
+					//		40,
+					//		WT_EXECUTEINTIMERTHREAD);
+					//
+					//	// The 'play'/'pause' button was pressed
+					//	if( FAILED( hr = OnPlaySound( hWnd ) ) )
+					//	{
+					//		DXTRACE_ERR( TEXT("OnPlaySound"), hr );
+					//		MessageBox( hWnd, "Error playing DirectSound buffer. "
+					//					"Sample will now exit.", "DirectSound Sample", 
+					//					MB_OK | MB_ICONERROR );
+					//		EndDialog( hWnd, IDABORT );
+					//	}
+					//}
+					PlaybackControl(0, PlaybackActions::PLAY);
 					break;
 				case IDC_QUERY_PAUSE_BUTTON:
-					if (queryPlaying) {
+					/*if (queryPlaying) {
 						queryPlaying = false;
 						if( g_pSound )
 							g_pSound->Stop();
 						KillTimer (hWnd, ID_QUERY_TIMER);
 
-						DeleteTimerQueueTimer(NULL, queryTimer, NULL);
+						DeleteTimerQueueTimer(NULL, videoTimer[0], NULL);
 					}
+					*/
+					PlaybackControl(0, PlaybackActions::PAUSE);
 					break;
 				case IDC_QUERY_STOP_BUTTON:
-					if (queryPlaying) {
-						DeleteTimerQueueTimer(NULL, queryTimer, NULL);
+					/*if (queryPlaying) {
+						DeleteTimerQueueTimer(NULL, videoTimer[0], NULL);
 					}
 						if( g_pSound )
 						{
@@ -463,19 +491,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 						inImage.setCurrentFrame(0);
 						inImage.Modify();
 						InvalidateRect(hWnd, &rt, false);
-						queryPlaying = false;
+						queryPlaying = false;*/
+					PlaybackControl(0, PlaybackActions::STOP);
 					break;
 				case IDC_MATCH_PLAY_BUTTON:
-					SetTimer(hWnd, ID_MATCH_TIMER, 40, NULL );
+					PlaybackControl(1, PlaybackActions::PLAY);
 					break;
 				case IDC_MATCH_PAUSE_BUTTON:
-					KillTimer(hWnd, ID_MATCH_TIMER);
+					PlaybackControl(1, PlaybackActions::PAUSE);
 					break;
 				case IDC_MATCH_STOP_BUTTON:
-					KillTimer (hWnd, ID_MATCH_TIMER);
-					outImage.setCurrentFrame(0);
-					outImage.Modify();
-					InvalidateRect(hWnd, &rt, false);
+					PlaybackControl(1, PlaybackActions::STOP);
 					break;
 				case ID_MODIFY_IMAGE:
 					//outImage.Modify();
@@ -536,10 +562,97 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 VOID CALLBACK TimerRoutine(PVOID lpParam, BOOLEAN TimerOrWaitFired)
 {
-	/*RECT rt;
-	GetClientRect(*(HWND*)lpParam, &rt);*/
-    inImage.Modify();
+	RECT rt;
+	GetClientRect(hWnd, &rt);
+
+	int index = *(int*)lpParam;
+
+	if (videos[index]->getCurrentFrame() != (videos[index]->getNumFrames() - 1)) {
+		videos[index]->Modify();
+		videos[index]->setCurrentFrame(videos[index]->getCurrentFrame()+1);
+	} else {
+		PlaybackControl(index, PlaybackActions::STOP);
+		
+	}
+    
 	//InvalidateRect(*(HWND*)lpParam, &rt, false);
+}
+
+
+
+VOID PlaybackControl(int index, PlaybackActions action)
+{
+	RECT rt;
+	HRESULT hr;
+	GetClientRect(hWnd, &rt);
+	
+	switch(action) {
+		case PLAY:
+			if (!(videoPlaying[0] || videoPlaying[1])) {
+				SetTimer(hWnd, ID_QUERY_TIMER, 30, NULL );
+			}
+			if (!videoPlaying[index]) {
+				videoPlaying[index] = true;
+				CreateTimerQueueTimer(
+					&videoTimer[index],
+					NULL,
+					(WAITORTIMERCALLBACK)TimerRoutine,
+					&videoIndex[index],
+					0,
+					40,
+					WT_EXECUTEINTIMERTHREAD);
+				
+				if (index == 0){
+					// The 'play'/'pause' button was pressed
+					if( FAILED( hr = OnPlaySound( hWnd ) ) )
+					{
+						DXTRACE_ERR( TEXT("OnPlaySound"), hr );
+						MessageBox( hWnd, "Error playing DirectSound buffer. "
+									"Sample will now exit.", "DirectSound Sample", 
+									MB_OK | MB_ICONERROR );
+						EndDialog( hWnd, IDABORT );
+					}
+				}
+			}
+			break;
+		case PAUSE:
+			if (videoPlaying[index]) {
+				
+				if(index == 0){
+					if( g_pSound )
+						g_pSound->Stop();
+				}
+
+				if (!(videoPlaying[0] && videoPlaying[1])) {
+					KillTimer (hWnd, ID_QUERY_TIMER);
+				}
+				videoPlaying[index] = false;
+				DeleteTimerQueueTimer(NULL, videoTimer[index], NULL);
+			}
+			break;
+		case STOP:
+			if (videoPlaying[index]) {
+				DeleteTimerQueueTimer(NULL, videoTimer[index], NULL);
+			}
+
+			if (index == 0) {
+				if( g_pSound )
+				{
+					g_pSound->Stop();
+					g_pSound->Reset();
+				}
+			}
+
+			if (!(videoPlaying[0] && videoPlaying[1])) {
+				KillTimer (hWnd, ID_QUERY_TIMER);
+			}
+			videos[index]->setCurrentFrame(0);
+			videos[index]->Modify();
+			InvalidateRect(hWnd, &rt, false);
+		
+			videoPlaying[index] = false;
+			break;
+	}
 }
 
 

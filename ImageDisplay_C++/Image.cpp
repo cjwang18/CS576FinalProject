@@ -250,11 +250,11 @@ bool MyImage::Modify()
 		Data[3*i+2] = VideoData[3*currentFrame*pixelsPerFrame+3*i+2];
 	}
 
-	if (currentFrame != (this->getNumFrames()-1)){
-		this->setCurrentFrame(currentFrame+1);
-	} else {
-		this->setCurrentFrame(0);
-	}
+	//if (currentFrame != (this->getNumFrames()-1)){
+	//	this->setCurrentFrame(currentFrame+1);
+	//} else {
+	//	this->setCurrentFrame(0);
+	//}
 
 	return false;
 }
