@@ -60,7 +60,11 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 			//return FALSE;
 		}
 		else
+		{
 			outImage = inImage;
+			inImage.Modify();
+			return false;
+		}
 	}
 
 	// Initialize global strings

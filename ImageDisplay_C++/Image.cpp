@@ -25,6 +25,7 @@ MyImage::MyImage()
 			ColorAnalysis[i][j] = 0;
 		}
 	}
+	BlackPixelAnalysis = -1;
 }
 
 MyImage::~MyImage()
@@ -64,6 +65,8 @@ MyImage::MyImage( MyImage *otherImage)
 		}
 	}
 
+	BlackPixelAnalysis = otherImage->BlackPixelAnalysis;
+
 }
 
 
@@ -94,6 +97,8 @@ MyImage & MyImage::operator= (const MyImage &otherImage)
 			ColorAnalysis[i][j] = otherImage.ColorAnalysis[i][j];
 		}
 	}	
+
+	BlackPixelAnalysis = otherImage.BlackPixelAnalysis;
 
 	return *this;
 
@@ -283,39 +288,58 @@ void MyImage::convertRGBtoHSV(unsigned char r, unsigned char g, unsigned char b,
 
 void MyImage::ColorAnalysisArraySetter(double h, double s)
 {
+	double hueInterval = HUE_INTERVALS;
 	double satInterval = SAT_INTERVALS;
 	double hueDegValue = h*360;
 	int hueIndex = -1;
 	int satIndex = -1;
 
-	// Determine the saturation index into ColorAnalysis array
-	for (int sat = 0; sat < satInterval; sat++){
-		if (s == 1){
-			satIndex = satInterval-1;
-			break;
+	if (h == 0 && s == 0)
+		BlackPixelAnalysis++;
+	else {
+		// Determine the saturation index into ColorAnalysis array
+		for (int sat = 0; sat < satInterval; sat++){
+			if (s == 1){
+				satIndex = satInterval-1;
+				break;
+			}
+			if (sat*(1/satInterval) <= s && s < (sat+1)*(1/satInterval)){
+				satIndex = sat;
+				break;
+			}
 		}
-		if (sat*(1/satInterval) <= s && s < (sat+1)*(1/satInterval)){
-			satIndex = sat;
-			break;
-		}
-	}
-	
-	// Determine the hue index into ColorAnalysis array
-	if ( (hueDegValue >= 0 && hueDegValue < 30) || (hueDegValue >= 330 && hueDegValue <= 360) )
-		hueIndex = 0;
-	else if (hueDegValue >= 30 && hueDegValue < 90)
-		hueIndex = 1;
-	else if (hueDegValue >= 90 && hueDegValue < 150)
-		hueIndex = 2;
-	else if (hueDegValue >= 150 && hueDegValue < 210)
-		hueIndex = 3;
-	else if (hueDegValue >= 210 && hueDegValue < 270)
-		hueIndex = 4;
-	else if (hueDegValue >= 270 && hueDegValue < 330)
-		hueIndex = 5;
 
-	// Increment value of ColorAnalysis array
-	ColorAnalysis[satIndex][hueIndex]++;
+		for (int hue = 0 ; hue < hueInterval ; hue++)
+		{
+			if (hueDegValue == 360)
+			{
+				hueIndex = hueInterval - 1;
+				break;
+			}
+			if (hue*(360/hueInterval) <= hueDegValue && hueDegValue < (hue+1)*(360/hueInterval))
+			{
+				hueIndex = hue;
+				break;
+			}
+		}
+	
+		// Determine the hue index into ColorAnalysis array
+		/*if ( (hueDegValue >= 0 && hueDegValue < 30) || (hueDegValue >= 330 && hueDegValue <= 360) )
+			hueIndex = 0;
+		else if (hueDegValue >= 30 && hueDegValue < 90)
+			hueIndex = 1;
+		else if (hueDegValue >= 90 && hueDegValue < 150)
+			hueIndex = 2;
+		else if (hueDegValue >= 150 && hueDegValue < 210)
+			hueIndex = 3;
+		else if (hueDegValue >= 210 && hueDegValue < 270)
+			hueIndex = 4;
+		else if (hueDegValue >= 270 && hueDegValue < 330)
+			hueIndex = 5;*/
+
+		// Increment value of ColorAnalysis array
+		ColorAnalysis[satIndex][hueIndex]++;
+	}
 }
 
 

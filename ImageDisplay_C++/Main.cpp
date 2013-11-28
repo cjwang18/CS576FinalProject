@@ -791,8 +791,9 @@ VOID QueryCompare()
 	inImage.Analyze();
 	for (int i=0 ; i<matchDBList.size() ; i++)
 	{
+		int BlackPixelAnalysis = -1;
 		int	ColorAnalysis[SAT_INTERVALS][HUE_INTERVALS];
-		double matchSum = 0;
+		double colorMatchSum = 0;
 		int colorRowCount = -1;
 		ss.str(std::string());
 		ss.clear();
@@ -826,10 +827,13 @@ VOID QueryCompare()
 				if (line.c_str()[0] == '#' && line.c_str()[1] == 'C')
 				{
 					std::getline(fin, line);
-					ss.clear();
-					ss.str("");
+					ss.clear(); ss.str("");
 					ss.str(line);
 					ss >> pixelsProcessed;
+					std::getline(fin, line);
+					ss.clear(); ss.str("");
+					ss.str(line);
+					ss >> BlackPixelAnalysis;
 					stage = 1;
 				}
 				
@@ -837,16 +841,22 @@ VOID QueryCompare()
 		}
 		fin.close();
 
+		// Color Analysis
 		for (int row = 0; row < SAT_INTERVALS; row++){
 			for (int col = 0; col < HUE_INTERVALS; col++){
 				double qPercent = inImage.getColorAnalysisVal(row,col)/(double)((inImage.getWidth()/SUBSAMPLE_FACTOR)*(inImage.getHeight()/SUBSAMPLE_FACTOR)*inImage.getNumFrames());
 				double mPercent = ColorAnalysis[row][col] / (double)pixelsProcessed;
 				double dif = abs(qPercent - mPercent);
-				matchSum += (dif);
+				colorMatchSum += (dif);
 			}
 		}
 
-		double closeness = matchSum / (double)(SAT_INTERVALS * HUE_INTERVALS);
+		// Black Pixel Analysis
+		double qPercent = inImage.getBlackPixelAnalysis()/(double)((inImage.getWidth()/SUBSAMPLE_FACTOR)*(inImage.getHeight()/SUBSAMPLE_FACTOR)*inImage.getNumFrames());
+		double mPercent = BlackPixelAnalysis / (double)pixelsProcessed;
+		double blackMatch = abs(qPercent - mPercent);
+
+		double closeness = ((double)0.1 * blackMatch) + ((double)0.9 * ((colorMatchSum) / (double)(SAT_INTERVALS * HUE_INTERVALS)));
 		matchDBList[i].second = 1 - (closeness * (double)10);
 	}
 

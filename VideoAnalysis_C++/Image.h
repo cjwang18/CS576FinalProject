@@ -10,7 +10,7 @@
 #ifndef IMAGE_DISPLAY
 #define IMAGE_DISPLAY
 
-#define HUE_INTERVALS 6
+#define HUE_INTERVALS 12
 #define SAT_INTERVALS 4
 #define SUBSAMPLE_FACTOR 4
 
@@ -43,6 +43,7 @@ private:
 	char*	Data;					// RGB data of the image
 	char*	VideoData;				// Holds all frames
 	int		ColorAnalysis[SAT_INTERVALS][HUE_INTERVALS];	// 4 Saturation intervals, 6 Hue intervals
+	int		BlackPixelAnalysis;		// Counts the number of black pixels (h=0 and s=0)
 
 public:
 	// Constructor
