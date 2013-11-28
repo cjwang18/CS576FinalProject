@@ -370,7 +370,7 @@ bool MyImage::Modify()
 	fout.open (ss.str().c_str(), std::ofstream::out);
 	
 	if (fout) {
-		fout << "Color Analysis with " << SAT_INTERVALS << " saturation intervals (rows) and " << HUE_INTERVALS << " hue intervals (cols)" << std::endl;
+		fout << "#Color Analysis with " << SAT_INTERVALS << " saturation intervals (rows) and " << HUE_INTERVALS << " hue intervals (cols)" << std::endl;
 		fout << (Width/SUBSAMPLE_FACTOR) * (Height/SUBSAMPLE_FACTOR) * NumFrames << std::endl;
 		for (int row = 0; row < SAT_INTERVALS; row++){
 			for (int col = 0; col < HUE_INTERVALS; col++) {
