@@ -282,16 +282,14 @@ void MyImage::convertRGBtoHSV(unsigned char r, unsigned char g, unsigned char b,
 }
 
 
-void MyImage::ColorAnalysisSetter(double h, double s)
+void MyImage::ColorAnalysisArraySetter(double h, double s)
 {
-
+	double satInterval = SAT_INTERVALS;
+	double hueDegValue = h*360;
 	int hueIndex = -1;
 	int satIndex = -1;
 
-	double satInterval = SAT_INTERVALS;
-
-	double hueDegValue = h*360;
-
+	// Determine the saturation index into ColorAnalysis array
 	for (int sat = 0; sat < satInterval; sat++){
 		if (s == 1){
 			satIndex = satInterval-1;
@@ -302,8 +300,8 @@ void MyImage::ColorAnalysisSetter(double h, double s)
 			break;
 		}
 	}
-
 	
+	// Determine the hue index into ColorAnalysis array
 	if ( (hueDegValue >= 0 && hueDegValue < 30) || (hueDegValue >= 330 && hueDegValue <= 360) )
 		hueIndex = 0;
 	else if (hueDegValue >= 30 && hueDegValue < 90)
@@ -317,8 +315,33 @@ void MyImage::ColorAnalysisSetter(double h, double s)
 	else if (hueDegValue >= 270 && hueDegValue < 330)
 		hueIndex = 5;
 
-
+	// Increment value of ColorAnalysis array
 	ColorAnalysis[satIndex][hueIndex]++;
+}
+
+
+
+void MyImage::DoColorAnalysis()
+{
+	int pixelsPerFrame = Height*Width;
+
+	for ( int frame=0 ; frame<NumFrames ; frame++)
+	{
+		for ( int row=0; row<Height; row+=SUBSAMPLE_FACTOR )
+		{
+			for ( int col = 0; col < Width; col+=SUBSAMPLE_FACTOR )
+			{ 
+				double h, s, v;
+
+				unsigned char b = (unsigned char)VideoData[3*(frame*pixelsPerFrame+row*Width+col)]; // BLUE
+				unsigned char g = (unsigned char)VideoData[3*(frame*pixelsPerFrame+row*Width+col)+1]; // GREEN
+				unsigned char r = (unsigned char)VideoData[3*(frame*pixelsPerFrame+row*Width+col)+2]; // RED
+
+				convertRGBtoHSV(r, g, b, h, s, v);
+				ColorAnalysisArraySetter(h, s);
+			}
+		}
+	}
 }
 
 
@@ -328,26 +351,11 @@ void MyImage::ColorAnalysisSetter(double h, double s)
 bool MyImage::Modify()
 {
 	int currentFrame = this->getCurrentFrame();
-	int pixelsPerFrame = Height*Width;
 	
-	for ( int frame=0 ; frame<NumFrames ; frame++)
-	{
-		for ( int row=0; row<Height; row+=4 )
-		{
-			for ( int col = 0; col < Width; col+=4 )
-			{ 
-				double h, s, v;
+	// Perform color analysis
+	DoColorAnalysis();
 
-				unsigned char b = (unsigned char)VideoData[3*(frame*pixelsPerFrame+row*Width+col)]; // BLUE
-				unsigned char g = (unsigned char)VideoData[3*(frame*pixelsPerFrame+row*Width+col)+1]; // GREEN
-				unsigned char r = (unsigned char)VideoData[3*(frame*pixelsPerFrame+row*Width+col)+2]; // RED
-
-				convertRGBtoHSV(r, g, b, h, s, v);
-				ColorAnalysisSetter(h, s);
-			}
-		}
-	}
-
+	// Output analysis to file
 	std::ofstream fout;
 	std::stringstream ss;
 
@@ -363,8 +371,9 @@ bool MyImage::Modify()
 	
 	if (fout) {
 		fout << "Color Analysis with " << SAT_INTERVALS << " saturation intervals (rows) and " << HUE_INTERVALS << " hue intervals (cols)" << std::endl;
+		fout << (Width/SUBSAMPLE_FACTOR) * (Height/SUBSAMPLE_FACTOR) * NumFrames << std::endl;
 		for (int row = 0; row < SAT_INTERVALS; row++){
-			for (int col = 0; col < HUE_INTERVALS; col++){
+			for (int col = 0; col < HUE_INTERVALS; col++) {
 				fout << ColorAnalysis[row][col] << ",";
 			}
 			fout << std::endl;

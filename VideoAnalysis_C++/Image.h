@@ -11,7 +11,8 @@
 #define IMAGE_DISPLAY
 
 #define HUE_INTERVALS 6
-#define SAT_INTERVALS 20
+#define SAT_INTERVALS 4
+#define SUBSAMPLE_FACTOR 4
 
 #if _MSC_VER > 1000
 #pragma once
@@ -76,7 +77,8 @@ public:
 	// Modifications
 	bool	Modify();
 	void	convertRGBtoHSV(unsigned char r, unsigned char g, unsigned char b, double &h, double &s, double &v);
-	void	ColorAnalysisSetter(double h, double s);
+	void	ColorAnalysisArraySetter(double h, double s);
+	void	DoColorAnalysis();
 
 };
 

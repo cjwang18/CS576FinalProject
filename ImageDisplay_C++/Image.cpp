@@ -20,6 +20,11 @@ MyImage::MyImage()
 	ImagePath[0] = 0;
 	CurrentFrame = 0;
 	NumFrames = -1;
+	for (int i=0 ; i<SAT_INTERVALS ; i++) {
+		for (int j=0 ; j<HUE_INTERVALS ; j++) {
+			ColorAnalysis[i][j] = 0;
+		}
+	}
 }
 
 MyImage::~MyImage()
@@ -41,7 +46,7 @@ MyImage::MyImage( MyImage *otherImage)
 	NumFrames = otherImage->NumFrames;
 	Data   = new char[Width*Height*3];
 	VideoData = new char[Width*Height*3*NumFrames];
-	strcpy(otherImage->ImagePath, ImagePath );
+	strcpy(ImagePath, otherImage->ImagePath);
 
 	for ( int i=0; i<(Height*Width*3); i++ )
 	{
@@ -51,6 +56,12 @@ MyImage::MyImage( MyImage *otherImage)
 	for (unsigned int i=0; i<(NumFrames*Height*Width*3); i++ )
 	{
 		VideoData[i] = otherImage->VideoData[i];
+	}
+
+	for (int i=0 ; i<SAT_INTERVALS ; i++) {
+		for (int j=0 ; j<HUE_INTERVALS ; j++) {
+			ColorAnalysis[i][j] = otherImage->ColorAnalysis[i][j];
+		}
 	}
 
 }
@@ -66,7 +77,7 @@ MyImage & MyImage::operator= (const MyImage &otherImage)
 	CurrentFrame = otherImage.CurrentFrame;
 	Data   = new char[Width*Height*3];
 	VideoData = new char[Width*Height*3*NumFrames];
-	strcpy( (char *)otherImage.ImagePath, ImagePath );
+	strcpy( ImagePath, (char *)otherImage.ImagePath );
 
 	for ( int i=0; i<(Height*Width*3); i++ )
 	{
@@ -77,7 +88,12 @@ MyImage & MyImage::operator= (const MyImage &otherImage)
 	{
 		VideoData[i]	= otherImage.VideoData[i];
 	}
-	
+
+	for (int i=0 ; i<SAT_INTERVALS ; i++) {
+		for (int j=0 ; j<HUE_INTERVALS ; j++) {
+			ColorAnalysis[i][j] = otherImage.ColorAnalysis[i][j];
+		}
+	}	
 
 	return *this;
 
@@ -233,6 +249,106 @@ bool MyImage::WriteImage()
 
 }
 
+
+
+// Conversion function courtesy of
+// https://github.com/ratkins/RGBConverter/blob/master/RGBConverter.cpp
+void MyImage::convertRGBtoHSV(unsigned char r, unsigned char g, unsigned char b, double &h, double &s, double &v)
+{
+    double rd = (double) r/255;
+    double gd = (double) g/255;
+    double bd = (double) b/255;
+    double max = max(rd, max(gd, bd));
+	double min = min(rd, min(gd, bd));
+    v = max;
+
+    double d = max - min;
+    s = max == 0 ? 0 : d / max;
+
+    if (max == min) { 
+        h = 0; // achromatic
+    } else {
+        if (max == rd) {
+            h = (gd - bd) / d + (gd < bd ? 6 : 0);
+        } else if (max == gd) {
+            h = (bd - rd) / d + 2;
+        } else if (max == bd) {
+            h = (rd - gd) / d + 4;
+        }
+        h /= 6;
+    }
+}
+
+
+
+void MyImage::ColorAnalysisArraySetter(double h, double s)
+{
+	double satInterval = SAT_INTERVALS;
+	double hueDegValue = h*360;
+	int hueIndex = -1;
+	int satIndex = -1;
+
+	// Determine the saturation index into ColorAnalysis array
+	for (int sat = 0; sat < satInterval; sat++){
+		if (s == 1){
+			satIndex = satInterval-1;
+			break;
+		}
+		if (sat*(1/satInterval) <= s && s < (sat+1)*(1/satInterval)){
+			satIndex = sat;
+			break;
+		}
+	}
+	
+	// Determine the hue index into ColorAnalysis array
+	if ( (hueDegValue >= 0 && hueDegValue < 30) || (hueDegValue >= 330 && hueDegValue <= 360) )
+		hueIndex = 0;
+	else if (hueDegValue >= 30 && hueDegValue < 90)
+		hueIndex = 1;
+	else if (hueDegValue >= 90 && hueDegValue < 150)
+		hueIndex = 2;
+	else if (hueDegValue >= 150 && hueDegValue < 210)
+		hueIndex = 3;
+	else if (hueDegValue >= 210 && hueDegValue < 270)
+		hueIndex = 4;
+	else if (hueDegValue >= 270 && hueDegValue < 330)
+		hueIndex = 5;
+
+	// Increment value of ColorAnalysis array
+	ColorAnalysis[satIndex][hueIndex]++;
+}
+
+
+
+void MyImage::DoColorAnalysis()
+{
+	int pixelsPerFrame = Height*Width;
+
+	for ( int frame=0 ; frame<NumFrames ; frame++)
+	{
+		for ( int row=0; row<Height; row+=SUBSAMPLE_FACTOR )
+		{
+			for ( int col = 0; col < Width; col+=SUBSAMPLE_FACTOR )
+			{ 
+				double h, s, v;
+
+				unsigned char b = (unsigned char)VideoData[3*(frame*pixelsPerFrame+row*Width+col)]; // BLUE
+				unsigned char g = (unsigned char)VideoData[3*(frame*pixelsPerFrame+row*Width+col)+1]; // GREEN
+				unsigned char r = (unsigned char)VideoData[3*(frame*pixelsPerFrame+row*Width+col)+2]; // RED
+
+				convertRGBtoHSV(r, g, b, h, s, v);
+				ColorAnalysisArraySetter(h, s);
+			}
+		}
+	}
+}
+
+
+
+void MyImage::Analyze()
+{
+	DoColorAnalysis();
+}
 
 
 

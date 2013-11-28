@@ -10,6 +10,10 @@
 #ifndef IMAGE_DISPLAY
 #define IMAGE_DISPLAY
 
+#define HUE_INTERVALS 6
+#define SAT_INTERVALS 4
+#define SUBSAMPLE_FACTOR 4
+
 #if _MSC_VER > 1000
 #pragma once
 #endif // _MSC_VER > 1000
@@ -38,6 +42,7 @@ private:
 	char	ImagePath[_MAX_PATH];	// Image location
 	char*	Data;					// RGB data of the image
 	char*	VideoData;				// Holds all frames
+	int		ColorAnalysis[SAT_INTERVALS][HUE_INTERVALS];	// 4 Saturation intervals, 6 Hue intervals
 
 public:
 	// Constructor
@@ -59,6 +64,9 @@ public:
 	void	setImagePath( const char *path) { strcpy(ImagePath, path); }
 	int		getWidth() { return Width; };
 	int		getHeight() { return Height; };
+
+	int		getColorAnalysisVal(int sat, int hue) { return ColorAnalysis[sat][hue]; };
+
 	unsigned long getNumFrames() { return NumFrames; };
 	unsigned long getCurrentFrame() { return CurrentFrame; };
 	char*	getImageData() { return Data; };
@@ -70,7 +78,11 @@ public:
 	bool	WriteImage();
 
 	// Modifications
+	void	Analyze();
 	bool	Modify();
+	void	convertRGBtoHSV(unsigned char r, unsigned char g, unsigned char b, double &h, double &s, double &v);
+	void	ColorAnalysisArraySetter(double h, double s);
+	void	DoColorAnalysis();
 
 };
 

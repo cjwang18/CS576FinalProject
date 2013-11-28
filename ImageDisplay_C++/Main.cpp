@@ -26,6 +26,11 @@ typedef void * POINTER_64;// PVOID64;
 #include "resource.h"
 #include "CS576SoundUtil.h"
 #include "DXUtil.h"
+#include <string>
+#include <vector>
+#include <fstream>
+#include <sstream>
+#include <iostream>
 
 #define MAX_LOADSTRING 100
 
@@ -72,6 +77,7 @@ HWND hWnd;
 int videoIndex[2] = {0, 1};
 HWND hwndTrack;
 int scrubberPos = 0;
+std::vector<std::pair<std::string, double> > matchDBList;
 
 // Foward declarations of functions included in this code module:
 ATOM				MyRegisterClass(HINSTANCE hInstance);
@@ -80,6 +86,7 @@ LRESULT CALLBACK	WndProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK	About(HWND, UINT, WPARAM, LPARAM);
 VOID CALLBACK TimerRoutine(PVOID, BOOLEAN);
 VOID PlaybackControl(int, PlaybackActions);
+VOID QueryCompare();
 
 
 // Main entry point for a windows application
@@ -91,6 +98,19 @@ int APIENTRY WinMain(HINSTANCE hInstance,
  	// TODO: Place code here.
 	MSG msg;
 	HACCEL hAccelTable;
+
+	matchDBList.push_back(std::make_pair("soccer1", 0));
+	matchDBList.push_back(std::make_pair("soccer2", 0));
+	matchDBList.push_back(std::make_pair("soccer3", 0));
+	matchDBList.push_back(std::make_pair("soccer4", 0));
+	matchDBList.push_back(std::make_pair("talk1", 0));
+	matchDBList.push_back(std::make_pair("talk2", 0));
+	matchDBList.push_back(std::make_pair("talk3", 0));
+	matchDBList.push_back(std::make_pair("talk4", 0));
+	matchDBList.push_back(std::make_pair("wreck1", 0));
+	matchDBList.push_back(std::make_pair("wreck2", 0));
+	matchDBList.push_back(std::make_pair("wreck3", 0));
+	matchDBList.push_back(std::make_pair("wreck4", 0));
 
 	videos[0] = &inImage;
 	videos[1] = &outImage;
@@ -115,7 +135,10 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 			//return FALSE;
 		}
 		else
+		{
 			outImage = inImage;
+			QueryCompare();
+		}
 	}
 
 	// Initialize global strings
@@ -703,3 +726,77 @@ LRESULT CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 
+
+VOID QueryCompare()
+{
+	std::ifstream fin;
+	std::stringstream ss;
+	std::string line;
+	int pixelsProcessed = 0;
+	
+	
+	
+
+	inImage.Analyze();
+	for (int i=0 ; i<matchDBList.size() ; i++)
+	{
+		int	ColorAnalysis[SAT_INTERVALS][HUE_INTERVALS];
+		double matchSum = 0;
+		int colorRowCount = -1;
+		ss.str(std::string());
+		ss.clear();
+		ss << "matchDB\\" << matchDBList[i].first << ".rgb.txt";
+		//std::string test(ss.str());
+		fin.open (ss.str().c_str(), std::ifstream::in);
+		int stage = 0;
+	
+		if (fin)
+		{
+			while (std::getline(fin, line))
+			{
+				std::cout << line << std::endl;
+				if (stage == 1)
+				{
+					colorRowCount++;
+					int colorColCount = -1;
+					int value;
+					ss.clear();
+					ss.str("");
+					ss.str(line);
+					while (ss >> value)
+					{
+						colorColCount++;
+						ColorAnalysis[colorRowCount][colorColCount] = value;
+						if (ss.peek() == ',')
+							ss.ignore();
+					}
+				}
+
+				if (line.c_str()[0] == '#' && line.c_str()[1] == 'C')
+				{
+					std::getline(fin, line);
+					ss.clear();
+					ss.str("");
+					ss.str(line);
+					ss >> pixelsProcessed;
+					stage = 1;
+				}
+				
+			}
+		}
+		fin.close();
+
+		for (int row = 0; row < SAT_INTERVALS; row++){
+			for (int col = 0; col < HUE_INTERVALS; col++){
+				double qPercent = inImage.getColorAnalysisVal(row,col)/(double)((inImage.getWidth()/SUBSAMPLE_FACTOR)*(inImage.getHeight()/SUBSAMPLE_FACTOR)*inImage.getNumFrames());
+				double mPercent = ColorAnalysis[row][col] / (double)pixelsProcessed;
+				double dif = abs(qPercent - mPercent);
+				matchSum += (dif);
+			}
+		}
+
+		double closeness = matchSum / (double)(SAT_INTERVALS * HUE_INTERVALS);
+		matchDBList[i].second = 1 - (closeness * (double)10);
+	}
+
+}
