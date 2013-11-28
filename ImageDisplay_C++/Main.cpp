@@ -31,6 +31,8 @@ typedef void * POINTER_64;// PVOID64;
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <iomanip>
+#include <algorithm>
 
 #define MAX_LOADSTRING 100
 
@@ -77,7 +79,16 @@ HWND hWnd;
 int videoIndex[2] = {0, 1};
 HWND hwndTrack;
 int scrubberPos = 0;
+HWND hwndMatchList;
 std::vector<std::pair<std::string, double> > matchDBList;
+
+std::string currentSelectedMatchVideo;
+
+struct sort_pred {
+    bool operator()(const std::pair<std::string,double> &left, const std::pair<std::string,double> &right) {
+        return left.second > right.second;
+    }
+};
 
 // Foward declarations of functions included in this code module:
 ATOM				MyRegisterClass(HINSTANCE hInstance);
@@ -343,18 +354,38 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				return false; 
 			}
 
-			HWND hwndMatchList = CreateWindowEx(
+			hwndMatchList = CreateWindowEx(
 				0,
 				WC_LISTBOX,
 				"Match List",
-				WS_CHILD | WS_VISIBLE | WS_BORDER | LBS_NOTIFY,
+				WS_CHILD | WS_VISIBLE | WS_BORDER | LBS_NOTIFY | LBS_HASSTRINGS,
 				outImage.getWidth()+55, 10,
-				150, 120,
+				200, 120,
 				hWnd,
 				(HMENU) IDC_MATCH_LIST,
 				GetModuleHandle(NULL),
 				NULL
 			);
+			
+			SendMessage(hwndMatchList, LB_ADDSTRING, 0, (LPARAM)"Matched Videos:");
+
+			std::stringstream ss;
+
+			std::string fileName = matchDBList[0].first + ".rgb";
+			ss << std::fixed << std::setw(20) << std::left << fileName << std::setprecision(2) << 100*matchDBList[0].second << "%";
+			SendMessage(hwndMatchList, LB_ADDSTRING, 0, (LPARAM)ss.str().c_str());
+
+			ss.clear();
+			ss.str("");
+			fileName = matchDBList[1].first + ".rgb";
+			ss << std::setw(20) << std::left << fileName << std::setprecision(2) << 100*matchDBList[1].second << "%";
+			SendMessage(hwndMatchList, LB_ADDSTRING, 0, (LPARAM)ss.str().c_str());
+
+			ss.clear();
+			ss.str("");
+			fileName = matchDBList[2].first + ".rgb";
+			ss << std::setw(20) << std::left << fileName << std::setprecision(2) << 100*matchDBList[2].second << "%";
+			SendMessage(hwndMatchList, LB_ADDSTRING, 0, (LPARAM)ss.str().c_str());
 
 			hwndTrack = CreateWindowEx( 
 				0, // no extended styles 
@@ -482,6 +513,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			// Parse the menu selections:
 			switch (wmId)
 			{
+				case IDC_MATCH_LIST:
+					if (wmEvent == LBN_SELCHANGE) {
+						int sel = (int) SendMessage(hwndMatchList, LB_GETCURSEL, 0, 0);
+
+						if (sel != 0 && (currentSelectedMatchVideo.compare(matchDBList[sel-1].first) != 0)) {
+							std::stringstream ss;
+							ss << "matchDB\\" << matchDBList[sel-1].first << ".rgb";
+							outImage.setImagePath(ss.str().c_str());
+							if ( !outImage.ReadImage() )
+							{ 
+								AfxMessageBox( "Could not find video file.");
+								//return FALSE;
+							} else {
+								currentSelectedMatchVideo = matchDBList[sel-1].first;
+								SendMessage(hwndTrack, TBM_SETRANGE, TRUE, MAKELONG(0, outImage.getNumFrames()-1));
+							}
+							InvalidateRect(hWnd, &rt, false);
+						}
+					}
+					break;
 				case IDM_ABOUT:
 					DialogBox(hInst, (LPCTSTR)IDD_ABOUTBOX, hWnd, (DLGPROC)About);
 					break;
@@ -799,4 +850,17 @@ VOID QueryCompare()
 		matchDBList[i].second = 1 - (closeness * (double)10);
 	}
 
+	std::sort(matchDBList.begin(), matchDBList.end(), sort_pred());
+
+	/*char *lpBuffer = new char[256];
+	strcpy_s(lpBuffer, 256, "test\0");
+	SendMessage(hwndMatchList, LB_INSERTSTRING, 0, (LPARAM) lpBuffer);
+	delete [] lpBuffer;*/
+
+	//TCHAR* temp = (TCHAR*)matchDBList[0].first.c_str();
+	//LPCWSTR pstr = (LPCWSTR)matchDBList[0].first.c_str(); //convert to LPCWSTR so that it could be converted to LPARAM on the next line 
+	
+
+	//SendMessageA(hwndMatchList, LB_ADDSTRING, 0, (LPARAM) (LPCSTR)matchDBList[0].first.c_str());
 }
+
