@@ -9,20 +9,33 @@
 
 #include "Image.h"
 
+#include <fstream>
+#include <sstream>
 
 // Constructor and Desctructors
 MyImage::MyImage() 
 {
 	Data = NULL;
+	VideoData = NULL;
 	Width = -1;
 	Height = -1;
 	ImagePath[0] = 0;
+	CurrentFrame = 0;
+	NumFrames = -1;
+	for (int i=0 ; i<SAT_INTERVALS ; i++) {
+		for (int j=0 ; j<HUE_INTERVALS ; j++) {
+			ColorAnalysis[i][j] = 0;
+		}
+	}
 }
 
 MyImage::~MyImage()
 {
 	if ( Data )
 		delete Data;
+
+	if ( VideoData )
+		delete VideoData;
 }
 
 
@@ -31,14 +44,27 @@ MyImage::MyImage( MyImage *otherImage)
 {
 	Height = otherImage->Height;
 	Width  = otherImage->Width;
+	CurrentFrame = otherImage->CurrentFrame;
+	NumFrames = otherImage->NumFrames;
 	Data   = new char[Width*Height*3];
-	strcpy(otherImage->ImagePath, ImagePath );
+	VideoData = new char[Width*Height*3*NumFrames];
+	strcpy(ImagePath, otherImage->ImagePath);
 
 	for ( int i=0; i<(Height*Width*3); i++ )
 	{
 		Data[i]	= otherImage->Data[i];
 	}
 
+	for (unsigned int i=0; i<(NumFrames*Height*Width*3); i++ )
+	{
+		VideoData[i] = otherImage->VideoData[i];
+	}
+
+	for (int i=0 ; i<SAT_INTERVALS ; i++) {
+		for (int j=0 ; j<HUE_INTERVALS ; j++) {
+			ColorAnalysis[i][j] = otherImage->ColorAnalysis[i][j];
+		}
+	}
 
 }
 
@@ -49,14 +75,28 @@ MyImage & MyImage::operator= (const MyImage &otherImage)
 {
 	Height = otherImage.Height;
 	Width  = otherImage.Width;
+	NumFrames = otherImage.NumFrames;
+	CurrentFrame = otherImage.CurrentFrame;
 	Data   = new char[Width*Height*3];
-	strcpy( (char *)otherImage.ImagePath, ImagePath );
+	VideoData = new char[Width*Height*3*NumFrames];
+	strcpy( ImagePath, (char *)otherImage.ImagePath );
 
 	for ( int i=0; i<(Height*Width*3); i++ )
 	{
 		Data[i]	= otherImage.Data[i];
 	}
 	
+	for ( int i=0; i<(Height*Width*3*NumFrames); i++ )
+	{
+		VideoData[i]	= otherImage.VideoData[i];
+	}
+	
+	for (int i=0 ; i<SAT_INTERVALS ; i++) {
+		for (int j=0 ; j<HUE_INTERVALS ; j++) {
+			ColorAnalysis[i][j] = otherImage.ColorAnalysis[i][j];
+		}
+	}
+
 	return *this;
 
 }
@@ -83,24 +123,44 @@ bool MyImage::ReadImage()
 		fprintf(stderr, "Error Opening File for Reading");
 		return false;
 	}
+	
+	// Count number of frames in the file
+	int c;
+	unsigned long numPixels = 0;
+	do {
+		c = fgetc (IN_FILE);
+		numPixels++;
+    } while (c != EOF);
+
+	this->setNumFrames(numPixels/(3*Height*Width));
+
+	unsigned int pixelsPerFrame = Height*Width;
+
+	numPixels = 0;
+
+	// After done counting frames, start from beginning of file
+	rewind(IN_FILE);
 
 	// Create and populate RGB buffers
 	int i;
-	char *Rbuf = new char[Height*Width]; 
-	char *Gbuf = new char[Height*Width]; 
-	char *Bbuf = new char[Height*Width]; 
+	char *Rbuf = new char[Height*Width*this->getNumFrames()]; 
+	char *Gbuf = new char[Height*Width*this->getNumFrames()]; 
+	char *Bbuf = new char[Height*Width*this->getNumFrames()]; 
 
-	for (i = 0; i < Width*Height; i ++)
-	{
-		Rbuf[i] = fgetc(IN_FILE);
-	}
-	for (i = 0; i < Width*Height; i ++)
-	{
-		Gbuf[i] = fgetc(IN_FILE);
-	}
-	for (i = 0; i < Width*Height; i ++)
-	{
-		Bbuf[i] = fgetc(IN_FILE);
+	for (int n = 0; n < this->getNumFrames(); ++n){
+		for (i = 0; i < Width*Height; i ++)
+		{
+			numPixels++;
+			Rbuf[n*pixelsPerFrame + i] = fgetc(IN_FILE);
+		}
+		for (i = 0; i < Width*Height; i ++)
+		{
+			Gbuf[n*pixelsPerFrame + i] = fgetc(IN_FILE);
+		}
+		for (i = 0; i < Width*Height; i ++)
+		{
+			Bbuf[n*pixelsPerFrame + i] = fgetc(IN_FILE);
+		}
 	}
 	
 	// Allocate Data structure and copy
@@ -108,8 +168,17 @@ bool MyImage::ReadImage()
 	for (i = 0; i < Height*Width; i++)
 	{
 		Data[3*i]	= Bbuf[i];
-		Data[3*i+1]	= Gbuf[i];
-		Data[3*i+2]	= Rbuf[i];
+		Data[3*i+1] = Gbuf[i];
+		Data[3*i+2] = Rbuf[i];
+	}
+
+	// Allocate VideoData structure and copy
+	VideoData = new char[Width*Height*3*this->getNumFrames()];
+	for (i = 0; i < Height*Width*this->getNumFrames(); i++)
+	{
+		VideoData[3*i]	= Bbuf[i];
+		VideoData[3*i+1] = Gbuf[i];
+		VideoData[3*i+2] = Rbuf[i];
 	}
 
 	// Clean up and return
@@ -184,20 +253,132 @@ bool MyImage::WriteImage()
 
 
 
+// Conversion function courtesy of
+// https://github.com/ratkins/RGBConverter/blob/master/RGBConverter.cpp
+void MyImage::convertRGBtoHSV(unsigned char r, unsigned char g, unsigned char b, double &h, double &s, double &v)
+{
+    double rd = (double) r/255;
+    double gd = (double) g/255;
+    double bd = (double) b/255;
+    double max = max(rd, max(gd, bd));
+	double min = min(rd, min(gd, bd));
+    v = max;
+
+    double d = max - min;
+    s = max == 0 ? 0 : d / max;
+
+    if (max == min) { 
+        h = 0; // achromatic
+    } else {
+        if (max == rd) {
+            h = (gd - bd) / d + (gd < bd ? 6 : 0);
+        } else if (max == gd) {
+            h = (bd - rd) / d + 2;
+        } else if (max == bd) {
+            h = (rd - gd) / d + 4;
+        }
+        h /= 6;
+    }
+}
+
+
+void MyImage::ColorAnalysisSetter(double h, double s)
+{
+
+	int hueIndex = -1;
+	int satIndex = -1;
+
+	double satInterval = SAT_INTERVALS;
+
+	double hueDegValue = h*360;
+
+	for (int sat = 0; sat < satInterval; sat++){
+		if (s == 1){
+			satIndex = satInterval-1;
+			break;
+		}
+		if (sat*(1/satInterval) <= s && s < (sat+1)*(1/satInterval)){
+			satIndex = sat;
+			break;
+		}
+	}
+
+	
+	if ( (hueDegValue >= 0 && hueDegValue < 30) || (hueDegValue >= 330 && hueDegValue <= 360) )
+		hueIndex = 0;
+	else if (hueDegValue >= 30 && hueDegValue < 90)
+		hueIndex = 1;
+	else if (hueDegValue >= 90 && hueDegValue < 150)
+		hueIndex = 2;
+	else if (hueDegValue >= 150 && hueDegValue < 210)
+		hueIndex = 3;
+	else if (hueDegValue >= 210 && hueDegValue < 270)
+		hueIndex = 4;
+	else if (hueDegValue >= 270 && hueDegValue < 330)
+		hueIndex = 5;
+
+
+	ColorAnalysis[satIndex][hueIndex]++;
+}
+
+
 
 // Here is where you would place your code to modify an image
 // eg Filtering, Transformation, Cropping, etc.
 bool MyImage::Modify()
 {
-
-	// TO DO by student
-
-	for ( int i=0; i<Width*Height; i++ )
+	int currentFrame = this->getCurrentFrame();
+	int pixelsPerFrame = Height*Width;
+	
+	for ( int frame=0 ; frame<NumFrames ; frame++)
 	{
-		Data[3*i] = 0;
-		Data[3*i+1] = 0;
+		for ( int row=0; row<Height; row+=4 )
+		{
+			for ( int col = 0; col < Width; col+=4 )
+			{ 
+				double h, s, v;
 
+				unsigned char b = (unsigned char)VideoData[3*(frame*pixelsPerFrame+row*Width+col)]; // BLUE
+				unsigned char g = (unsigned char)VideoData[3*(frame*pixelsPerFrame+row*Width+col)+1]; // GREEN
+				unsigned char r = (unsigned char)VideoData[3*(frame*pixelsPerFrame+row*Width+col)+2]; // RED
+
+				convertRGBtoHSV(r, g, b, h, s, v);
+				ColorAnalysisSetter(h, s);
+			}
+		}
 	}
+
+	std::ofstream fout;
+	std::stringstream ss;
+
+	int counter = 0;
+	while (ImagePath[counter] != '\0'){
+		ss << ImagePath[counter];
+		counter++;
+	}
+
+	ss << ".txt";
+
+	fout.open (ss.str().c_str(), std::ofstream::out);
+	
+	if (fout) {
+		fout << "Color Analysis with " << SAT_INTERVALS << " saturation intervals (rows) and " << HUE_INTERVALS << " hue intervals (cols)" << std::endl;
+		for (int row = 0; row < SAT_INTERVALS; row++){
+			for (int col = 0; col < HUE_INTERVALS; col++){
+				fout << ColorAnalysis[row][col] << ",";
+			}
+			fout << std::endl;
+		}
+
+
+		fout.close();
+	}
+
+	//if (currentFrame != (this->getNumFrames()-1)){
+	//	this->setCurrentFrame(currentFrame+1);
+	//} else {
+	//	this->setCurrentFrame(0);
+	//}
 
 	return false;
 }
