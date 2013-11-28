@@ -69,6 +69,8 @@ BOOL videoPlaying[2] = {false, false};
 HANDLE videoTimer[2] = {NULL, NULL};
 HWND hWnd;
 int videoIndex[2] = {0, 1};
+HWND hwndTrack;
+int scrubberPos = 0;
 
 // Foward declarations of functions included in this code module:
 ATOM				MyRegisterClass(HINSTANCE hInstance);
@@ -275,6 +277,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 	HRESULT hr;
 
+	
+
 	switch (message) 
 	{
 		case WM_CREATE:
@@ -317,20 +321,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 			
 
-			HWND hwndTrack = CreateWindowEx( 
+			hwndTrack = CreateWindowEx( 
 				0, // no extended styles 
 				TRACKBAR_CLASS, // class name 
 				"Trackbar Control", // title (caption) 
 				WS_CHILD | WS_VISIBLE | 
-				TBS_AUTOTICKS | TBS_ENABLESELRANGE, // style 
-				10, 10, // position 
-				200, 30, // size 
+				TBS_NOTICKS | TBS_BOTH, // style 
+				outImage.getWidth()+55, 150, // position 
+				352, 25, // size 
 				hWnd, // parent window 
 				(HMENU)IDC_MATCH_SLIDER, // control identifier 
 				GetModuleHandle(NULL), // instance 
 				NULL // no WM_CREATE parameter 
-				); 
-
+			);
+			SendMessage(hwndTrack, TBM_SETRANGE, TRUE, MAKELONG(0, outImage.getNumFrames()-1));
 
 			// Create the QUERY PLAY button
 			HWND hWndQueryPlayButton=CreateWindowEx(NULL,
@@ -418,8 +422,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				(HMENU)IDC_MATCH_STOP_BUTTON,
 				GetModuleHandle(NULL),
 				NULL);
-		}
-		break;
+			}
+			break;
+		case WM_HSCROLL:
+			scrubberPos = SendMessage(hwndTrack, TBM_GETPOS, 0, 0);
+			outImage.setCurrentFrame(scrubberPos);
+			outImage.Modify();
+			InvalidateRect(hWnd, &rt, false);
+			break;
 		case WM_TIMER:
 			/*switch(wParam) {
 				case ID_QUERY_TIMER:
@@ -570,6 +580,8 @@ VOID CALLBACK TimerRoutine(PVOID lpParam, BOOLEAN TimerOrWaitFired)
 	if (videos[index]->getCurrentFrame() != (videos[index]->getNumFrames() - 1)) {
 		videos[index]->Modify();
 		videos[index]->setCurrentFrame(videos[index]->getCurrentFrame()+1);
+		if (index == 1)
+			SendMessage(hwndTrack, TBM_SETPOS, TRUE, videos[index]->getCurrentFrame());
 	} else {
 		PlaybackControl(index, PlaybackActions::STOP);
 		
@@ -648,6 +660,8 @@ VOID PlaybackControl(int index, PlaybackActions action)
 			}
 			videos[index]->setCurrentFrame(0);
 			videos[index]->Modify();
+			if (index == 1)
+				SendMessage(hwndTrack, TBM_SETPOS, TRUE, 0);
 			InvalidateRect(hWnd, &rt, false);
 		
 			videoPlaying[index] = false;
