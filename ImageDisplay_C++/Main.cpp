@@ -41,6 +41,7 @@ typedef void * POINTER_64;// PVOID64;
 #define IDC_MATCH_PAUSE_BUTTON	1005
 #define IDC_MATCH_STOP_BUTTON	1006
 #define IDC_MATCH_SLIDER		1007
+#define IDC_MATCH_LIST			1008
 #define ID_QUERY_TIMER 2001
 #define ID_MATCH_TIMER 2002
 #define ID_QUERY_AUDIO_TIMER 2003
@@ -319,7 +320,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				return false; 
 			}
 
-			
+			HWND hwndMatchList = CreateWindowEx(
+				0,
+				WC_LISTBOX,
+				"Match List",
+				WS_CHILD | WS_VISIBLE | WS_BORDER | LBS_NOTIFY,
+				outImage.getWidth()+55, 10,
+				150, 120,
+				hWnd,
+				(HMENU) IDC_MATCH_LIST,
+				GetModuleHandle(NULL),
+				NULL
+			);
 
 			hwndTrack = CreateWindowEx( 
 				0, // no extended styles 
