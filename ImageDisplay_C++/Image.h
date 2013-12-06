@@ -27,6 +27,7 @@
 #include <malloc.h>
 #include <memory.h>
 #include <tchar.h>
+#include <vector>
 
 
 // Class structure of Image 
@@ -44,6 +45,7 @@ private:
 	char*	VideoData;				// Holds all frames
 	int		ColorAnalysis[SAT_INTERVALS][HUE_INTERVALS];	// 4 Saturation intervals, 6 Hue intervals
 	int		BlackPixelAnalysis;		// Counts the number of black pixels (h=0 and s=0)
+	std::vector<double>	AvgHuePerFrame;
 
 public:
 	// Constructor

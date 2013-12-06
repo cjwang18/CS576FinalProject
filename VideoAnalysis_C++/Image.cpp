@@ -9,7 +9,6 @@
 
 #include "Image.h"
 
-#include <fstream>
 #include <sstream>
 
 // Constructor and Desctructors
@@ -345,16 +344,20 @@ void MyImage::ColorAnalysisArraySetter(double h, double s)
 
 
 
-void MyImage::DoColorAnalysis()
+// Needs to be called inside fout
+void MyImage::DoColorAnalysis(std::ofstream &fout)
 {
 	int pixelsPerFrame = Height*Width;
 
 	for ( int frame=0 ; frame<NumFrames ; frame++)
 	{
+		int pixelsProcessed = 0;
+		double hueSum = 0;
+
 		for ( int row=0; row<Height; row+=SUBSAMPLE_FACTOR )
 		{
 			for ( int col = 0; col < Width; col+=SUBSAMPLE_FACTOR )
-			{ 
+			{
 				double h, s, v;
 
 				unsigned char b = (unsigned char)VideoData[3*(frame*pixelsPerFrame+row*Width+col)]; // BLUE
@@ -363,8 +366,12 @@ void MyImage::DoColorAnalysis()
 
 				convertRGBtoHSV(r, g, b, h, s, v);
 				ColorAnalysisArraySetter(h, s);
+				hueSum += h;
+				pixelsProcessed++;
 			}
 		}
+
+		fout << hueSum / (double)pixelsProcessed << std::endl;
 	}
 }
 
@@ -377,7 +384,7 @@ bool MyImage::Modify()
 	int currentFrame = this->getCurrentFrame();
 	
 	// Perform color analysis
-	DoColorAnalysis();
+	//DoColorAnalysis();
 
 	// Output analysis to file
 	std::ofstream fout;
@@ -388,22 +395,26 @@ bool MyImage::Modify()
 		ss << ImagePath[counter];
 		counter++;
 	}
-
 	ss << ".txt";
 
 	fout.open (ss.str().c_str(), std::ofstream::out);
 	
-	if (fout) {
-		fout << "#Color Analysis with " << SAT_INTERVALS << " saturation intervals (rows) and " << HUE_INTERVALS << " hue intervals (cols)" << std::endl;
-		fout << (Width/SUBSAMPLE_FACTOR) * (Height/SUBSAMPLE_FACTOR) * NumFrames << std::endl;
+	if (fout)
+	{
+		fout << "#Data (# Pixels Processed)" << std::endl;
+		fout << (Width/SUBSAMPLE_FACTOR) * (Height/SUBSAMPLE_FACTOR) * NumFrames << std::endl; // Total # of pixels processed
+		
+		fout << "#Frame By Frame Analysis of Color" << std::endl;
+		DoColorAnalysis(fout);
+		
+		fout << "#Color Analysis with # Black Pixels, " << SAT_INTERVALS << " saturation intervals (rows) and " << HUE_INTERVALS << " hue intervals (cols)" << std::endl;
 		fout << BlackPixelAnalysis << std::endl;
-		for (int row = 0; row < SAT_INTERVALS; row++){
+		for (int row = 0; row < SAT_INTERVALS; row++) {
 			for (int col = 0; col < HUE_INTERVALS; col++) {
 				fout << ColorAnalysis[row][col] << ",";
 			}
 			fout << std::endl;
 		}
-
 
 		fout.close();
 	}

@@ -80,7 +80,10 @@ int videoIndex[2] = {0, 1};
 HWND hwndTrack;
 int scrubberPos = 0;
 HWND hwndMatchList;
+// Stores <name, percentage match> pair for each match video
 std::vector<std::pair<std::string, double> > matchDBList;
+// Stores 2D vector of AvgHue per frame per match video
+std::vector< std::vector<double> > avgHue;
 
 std::string currentSelectedMatchVideo;
 
@@ -800,14 +803,21 @@ VOID QueryCompare()
 		ss << "matchDB\\" << matchDBList[i].first << ".rgb.txt";
 		//std::string test(ss.str());
 		fin.open (ss.str().c_str(), std::ifstream::in);
+		// Stages
+		// 0 - Initial, Data
+		// 1 - Frame by Frame
+		// 2 - Color - Black, Hue, Sat
+		// 3 - 
 		int stage = 0;
+		std::vector<double> avgHuePerFrame; // temporarily stores avg hue for currently processing match video
 	
 		if (fin)
 		{
 			while (std::getline(fin, line))
 			{
 				std::cout << line << std::endl;
-				if (stage == 1)
+
+				if (stage == 2)
 				{
 					colorRowCount++;
 					int colorColCount = -1;
@@ -824,22 +834,35 @@ VOID QueryCompare()
 					}
 				}
 
-				if (line.c_str()[0] == '#' && line.c_str()[1] == 'C')
+				if (stage == 1)
+				{
+					if (line.c_str()[0] == '#' && line.c_str()[1] == 'C') {
+						std::getline(fin, line);
+						ss.clear(); ss.str("");
+						ss.str(line);
+						ss >> BlackPixelAnalysis;
+						stage = 2;
+					} else
+						avgHuePerFrame.push_back((double)atof(line.c_str()));
+				}
+
+				// Stage 0
+				if (line.c_str()[0] == '#' && line.c_str()[1] == 'D')
 				{
 					std::getline(fin, line);
 					ss.clear(); ss.str("");
 					ss.str(line);
 					ss >> pixelsProcessed;
-					std::getline(fin, line);
-					ss.clear(); ss.str("");
-					ss.str(line);
-					ss >> BlackPixelAnalysis;
 					stage = 1;
+					std::getline(fin, line); // hack to remove extra line that added extra row to avgHuePerFrame
 				}
 				
 			}
 		}
 		fin.close();
+
+		// Add temp avgHuePerFrame of current match video to 2D vector avgHue
+		avgHue.push_back(avgHuePerFrame);
 
 		// Color Analysis
 		for (int row = 0; row < SAT_INTERVALS; row++){

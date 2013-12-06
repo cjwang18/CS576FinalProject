@@ -350,10 +350,13 @@ void MyImage::DoColorAnalysis()
 
 	for ( int frame=0 ; frame<NumFrames ; frame++)
 	{
+		int pixelsProcessed = 0;
+		double hueSum = 0;
+
 		for ( int row=0; row<Height; row+=SUBSAMPLE_FACTOR )
 		{
 			for ( int col = 0; col < Width; col+=SUBSAMPLE_FACTOR )
-			{ 
+			{
 				double h, s, v;
 
 				unsigned char b = (unsigned char)VideoData[3*(frame*pixelsPerFrame+row*Width+col)]; // BLUE
@@ -362,8 +365,13 @@ void MyImage::DoColorAnalysis()
 
 				convertRGBtoHSV(r, g, b, h, s, v);
 				ColorAnalysisArraySetter(h, s);
+				hueSum += h;
+				pixelsProcessed++;
 			}
 		}
+
+		// TODO: Calculate average hue for each frame
+		AvgHuePerFrame.push_back(hueSum / (double)pixelsProcessed);
 	}
 }
 

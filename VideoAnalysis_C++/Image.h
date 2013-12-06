@@ -27,6 +27,7 @@
 #include <malloc.h>
 #include <memory.h>
 #include <tchar.h>
+#include <fstream>
 
 
 // Class structure of Image 
@@ -79,7 +80,7 @@ public:
 	bool	Modify();
 	void	convertRGBtoHSV(unsigned char r, unsigned char g, unsigned char b, double &h, double &s, double &v);
 	void	ColorAnalysisArraySetter(double h, double s);
-	void	DoColorAnalysis();
+	void	DoColorAnalysis(std::ofstream &fout);
 
 };
 
