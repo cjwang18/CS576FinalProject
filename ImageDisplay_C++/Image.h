@@ -70,6 +70,7 @@ public:
 
 	int		getColorAnalysisVal(int sat, int hue) { return ColorAnalysis[sat][hue]; };
 	int		getBlackPixelAnalysis() { return BlackPixelAnalysis; };
+	std::vector<double> getAvgHuePerFrame() { return AvgHuePerFrame; };
 
 	unsigned long getNumFrames() { return NumFrames; };
 	unsigned long getCurrentFrame() { return CurrentFrame; };

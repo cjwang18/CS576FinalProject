@@ -82,14 +82,17 @@ int scrubberPos = 0;
 HWND hwndMatchList;
 // Stores <name, percentage match> pair for each match video
 std::vector<std::pair<std::string, double> > matchDBList;
-// Stores 2D vector of AvgHue per frame per match video
-std::vector< std::vector<double> > avgHue;
-
 std::string currentSelectedMatchVideo;
 
 struct sort_pred {
     bool operator()(const std::pair<std::string,double> &left, const std::pair<std::string,double> &right) {
         return left.second > right.second;
+    }
+};
+
+struct sort_avg_hue {
+    bool operator()(const std::pair<int,double> &left, const std::pair<int,double> &right) {
+        return left.second < right.second;
     }
 };
 
@@ -809,7 +812,7 @@ VOID QueryCompare()
 		// 2 - Color - Black, Hue, Sat
 		// 3 - 
 		int stage = 0;
-		std::vector<double> avgHuePerFrame; // temporarily stores avg hue for currently processing match video
+		std::vector<double> matchAvgHue; // temporarily stores avg hue for currently processing match video
 	
 		if (fin)
 		{
@@ -843,7 +846,7 @@ VOID QueryCompare()
 						ss >> BlackPixelAnalysis;
 						stage = 2;
 					} else
-						avgHuePerFrame.push_back((double)atof(line.c_str()));
+						matchAvgHue.push_back((double)atof(line.c_str()));
 				}
 
 				// Stage 0
@@ -861,8 +864,25 @@ VOID QueryCompare()
 		}
 		fin.close();
 
-		// Add temp avgHuePerFrame of current match video to 2D vector avgHue
-		avgHue.push_back(avgHuePerFrame);
+
+		// Stores <int, double> pair corresponding to <which offset frame, match closeness>
+		std::vector<std::pair<int, double>> offsetMatch;
+		// Assumes match video longer than query video
+		std::vector<double> queryAvgHue = inImage.getAvgHuePerFrame();
+		for (int offset = 0 ; offset < (matchAvgHue.size() - queryAvgHue.size()) ; offset++)
+		{
+			double dif = 0;
+			for (int i = 0 ; i < queryAvgHue.size() ; i++)
+			{
+				dif += abs(queryAvgHue[i] - matchAvgHue[i+offset]);
+			}
+			offsetMatch.push_back(std::make_pair(offset, dif / (double)queryAvgHue.size()));
+		}
+
+		// offsetMatch now contains match % at each frame offset
+		// sort it
+		std::sort(offsetMatch.begin(), offsetMatch.end(), sort_avg_hue());
+		// offsetMatch[0].first is the offset, offsetMatch[0].second is the "closeness" calculation
 
 		// Color Analysis
 		for (int row = 0; row < SAT_INTERVALS; row++){
@@ -879,7 +899,9 @@ VOID QueryCompare()
 		double mPercent = BlackPixelAnalysis / (double)pixelsProcessed;
 		double blackMatch = abs(qPercent - mPercent);
 
-		double closeness = ((double)0.1 * blackMatch) + ((double)0.9 * ((colorMatchSum) / (double)(SAT_INTERVALS * HUE_INTERVALS)));
+		// TODO: integrate
+		//double closeness = ((double)0.1 * blackMatch) + ((double)0.9 * ((colorMatchSum) / (double)(SAT_INTERVALS * HUE_INTERVALS)));
+		double closeness = offsetMatch[0].second;
 		matchDBList[i].second = 1 - (closeness * (double)10);
 	}
 
