@@ -50,11 +50,14 @@ END
 
 IDC_IMAGE ACCELERATORS
 BEGIN
+    "s",            IDC_QUERY_PAUSE_BUTTON, ASCII,  NOINVERT
     "a",            IDC_QUERY_PLAY_BUTTON,  ASCII,  NOINVERT
+    "d",            IDC_QUERY_STOP_BUTTON,  ASCII,  NOINVERT
     "/",            IDM_ABOUT,              ASCII,  ALT, NOINVERT
     "?",            IDM_ABOUT,              ASCII,  ALT, NOINVERT
-    "s",            IDC_QUERY_PAUSE_BUTTON, ASCII,  NOINVERT
-    "d",            IDC_QUERY_STOP_BUTTON,  ASCII,  NOINVERT
+    "j",            IDC_MATCH_PLAY_BUTTON,  ASCII,  NOINVERT
+    "k",            IDC_MATCH_PAUSE_BUTTON, ASCII,  NOINVERT
+    "l",            IDC_MATCH_STOP_BUTTON,  ASCII,  NOINVERT
 END
 
 

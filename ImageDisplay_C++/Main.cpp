@@ -28,11 +28,13 @@ typedef void * POINTER_64;// PVOID64;
 #include "DXUtil.h"
 #include <string>
 #include <vector>
+#include <tuple>
 #include <fstream>
 #include <sstream>
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
+#include <atlwin.h>
 
 #define MAX_LOADSTRING 100
 
@@ -70,6 +72,8 @@ HANDLE queryTimer = NULL;
 int queryTimerArg = 123;
 BOOL	queryPlaying = false;
 
+MyImage loadedVideos[3];
+
 enum PlaybackActions { PLAY, PAUSE, STOP };
 PlaybackActions playbackAction;
 MyImage* videos[2];
@@ -81,12 +85,12 @@ HWND hwndTrack;
 int scrubberPos = 0;
 HWND hwndMatchList;
 // Stores <name, percentage match> pair for each match video
-std::vector<std::pair<std::string, double> > matchDBList;
+std::vector<std::tuple<std::string, double, int> > matchDBList;
 std::string currentSelectedMatchVideo;
 
 struct sort_pred {
-    bool operator()(const std::pair<std::string,double> &left, const std::pair<std::string,double> &right) {
-        return left.second > right.second;
+    bool operator()(const std::tuple<std::string,double, int> &left, const std::tuple<std::string,double, int> &right) {
+        return std::get<1>(left) > std::get<1>(right);
     }
 };
 
@@ -116,22 +120,22 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 	MSG msg;
 	HACCEL hAccelTable;
 
-	matchDBList.push_back(std::make_pair("soccer1", 0));
-	matchDBList.push_back(std::make_pair("soccer2", 0));
-	matchDBList.push_back(std::make_pair("soccer3", 0));
-	matchDBList.push_back(std::make_pair("soccer4", 0));
-	matchDBList.push_back(std::make_pair("talk1", 0));
-	matchDBList.push_back(std::make_pair("talk2", 0));
-	matchDBList.push_back(std::make_pair("talk3", 0));
-	matchDBList.push_back(std::make_pair("talk4", 0));
-	matchDBList.push_back(std::make_pair("wreck1", 0));
-	matchDBList.push_back(std::make_pair("wreck2", 0));
-	matchDBList.push_back(std::make_pair("wreck3", 0));
-	matchDBList.push_back(std::make_pair("wreck4", 0));
+	matchDBList.push_back(std::make_tuple("soccer1", 0, 0));
+	matchDBList.push_back(std::make_tuple("soccer2", 0, 0));
+	matchDBList.push_back(std::make_tuple("soccer3", 0, 0));
+	matchDBList.push_back(std::make_tuple("soccer4", 0, 0));
+	matchDBList.push_back(std::make_tuple("talk1", 0, 0));
+	matchDBList.push_back(std::make_tuple("talk2", 0, 0));
+	matchDBList.push_back(std::make_tuple("talk3", 0, 0));
+	matchDBList.push_back(std::make_tuple("talk4", 0, 0));
+	matchDBList.push_back(std::make_tuple("wreck1", 0, 0));
+	matchDBList.push_back(std::make_tuple("wreck2", 0, 0));
+	matchDBList.push_back(std::make_tuple("wreck3", 0, 0));
+	matchDBList.push_back(std::make_tuple("wreck4", 0, 0));
 
 	videos[0] = &inImage;
 	videos[1] = &outImage;
-
+	
 	// Read in the image and its copy
 	char ImagePath[_MAX_PATH];
 
@@ -377,20 +381,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 			std::stringstream ss;
 
-			std::string fileName = matchDBList[0].first + ".rgb";
-			ss << std::fixed << std::setw(20) << std::left << fileName << std::setprecision(2) << 100*matchDBList[0].second << "%";
+			std::string fileName = std::get<0>(matchDBList[0]) + ".rgb";
+			ss << std::fixed << std::setw(20) << std::left << fileName << std::setprecision(2) << 100*std::get<1>(matchDBList[0]) << "%";
 			SendMessage(hwndMatchList, LB_ADDSTRING, 0, (LPARAM)ss.str().c_str());
 
 			ss.clear();
 			ss.str("");
-			fileName = matchDBList[1].first + ".rgb";
-			ss << std::setw(20) << std::left << fileName << std::setprecision(2) << 100*matchDBList[1].second << "%";
+			fileName = std::get<0>(matchDBList[1]) + ".rgb";
+			ss << std::setw(20) << std::left << fileName << std::setprecision(2) << 100*std::get<1>(matchDBList[1]) << "%";
 			SendMessage(hwndMatchList, LB_ADDSTRING, 0, (LPARAM)ss.str().c_str());
 
 			ss.clear();
 			ss.str("");
-			fileName = matchDBList[2].first + ".rgb";
-			ss << std::setw(20) << std::left << fileName << std::setprecision(2) << 100*matchDBList[2].second << "%";
+			fileName = std::get<0>(matchDBList[2]) + ".rgb";
+			ss << std::setw(20) << std::left << fileName << std::setprecision(2) << 100*std::get<1>(matchDBList[2]) << "%";
 			SendMessage(hwndMatchList, LB_ADDSTRING, 0, (LPARAM)ss.str().c_str());
 
 			hwndTrack = CreateWindowEx( 
@@ -523,20 +527,44 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					if (wmEvent == LBN_SELCHANGE) {
 						int sel = (int) SendMessage(hwndMatchList, LB_GETCURSEL, 0, 0);
 
-						if (sel != 0 && (currentSelectedMatchVideo.compare(matchDBList[sel-1].first) != 0)) {
-							std::stringstream ss;
-							ss << "matchDB\\" << matchDBList[sel-1].first << ".rgb";
-							outImage.setImagePath(ss.str().c_str());
-							if ( !outImage.ReadImage() )
-							{ 
-								AfxMessageBox( "Could not find video file.");
-								//return FALSE;
-							} else {
-								currentSelectedMatchVideo = matchDBList[sel-1].first;
-								SendMessage(hwndTrack, TBM_SETRANGE, TRUE, MAKELONG(0, outImage.getNumFrames()-1));
+						if (sel != 0) {
+							if ((currentSelectedMatchVideo.compare(std::get<0>(matchDBList[sel-1])) != 0)){
+								//int test = loadedVideos[0].getNumFrames();
+								if(loadedVideos[sel-1].getNumFrames() == -1){
+									std::stringstream ss;
+									ss << "matchDB\\" << std::get<0>(matchDBList[sel-1]) << ".rgb";
+									outImage.setImagePath(ss.str().c_str());
+									if ( !outImage.ReadImage() )
+									{ 
+										AfxMessageBox( "Could not find video file.");
+										//return FALSE;
+									} else {
+										currentSelectedMatchVideo = std::get<0>(matchDBList[sel-1]);
+										loadedVideos[sel-1].CopyImage( outImage);
+										SendMessage(hwndTrack, TBM_SETRANGE, TRUE, MAKELONG(0, outImage.getNumFrames()-1));
+										SendMessage(hwndTrack, TBM_SETPOS, TRUE, std::get<2>(matchDBList[sel-1]));
+										outImage.setCurrentFrame(std::get<2>(matchDBList[sel-1]));
+										outImage.Modify();
+									}
+									InvalidateRect(hWnd, &rt, false);
+								} else {
+									// Already loaded
+									outImage.CopyImage( loadedVideos[sel-1]);
+									SendMessage(hwndTrack, TBM_SETRANGE, TRUE, MAKELONG(0, outImage.getNumFrames()-1));
+									SendMessage(hwndTrack, TBM_SETPOS, TRUE, std::get<2>(matchDBList[sel-1]));
+									outImage.setCurrentFrame(std::get<2>(matchDBList[sel-1]));
+									outImage.Modify();
+								}
+							} else if ((currentSelectedMatchVideo.compare(std::get<0>(matchDBList[sel-1])) == 0)) {
+								SendMessage(hwndTrack, TBM_SETPOS, TRUE, std::get<2>(matchDBList[sel-1]));
+								outImage.setCurrentFrame(std::get<2>(matchDBList[sel-1]));
+								outImage.Modify();
+								InvalidateRect(hWnd, &rt, false);
 							}
-							InvalidateRect(hWnd, &rt, false);
-						}
+						} 
+						CWindow myWindow;
+						myWindow.Attach(hWnd);
+						HWND hWndLeftFocus = myWindow.SetFocus();
 					}
 					break;
 				case IDM_ABOUT:
@@ -803,7 +831,7 @@ VOID QueryCompare()
 		int colorRowCount = -1;
 		ss.str(std::string());
 		ss.clear();
-		ss << "matchDB\\" << matchDBList[i].first << ".rgb.txt";
+		ss << "matchDB\\" << std::get<0>(matchDBList[i]) << ".rgb.txt";
 		//std::string test(ss.str());
 		fin.open (ss.str().c_str(), std::ifstream::in);
 		// Stages
@@ -869,7 +897,7 @@ VOID QueryCompare()
 		std::vector<std::pair<int, double>> offsetMatch;
 		// Assumes match video longer than query video
 		std::vector<double> queryAvgHue = inImage.getAvgHuePerFrame();
-		for (int offset = 0 ; offset < (matchAvgHue.size() - queryAvgHue.size()) ; offset++)
+		for (int offset = 0 ; offset <= (matchAvgHue.size() - queryAvgHue.size()) ; offset++)
 		{
 			double dif = 0;
 			for (int i = 0 ; i < queryAvgHue.size() ; i++)
@@ -902,7 +930,8 @@ VOID QueryCompare()
 		// TODO: integrate
 		//double closeness = ((double)0.1 * blackMatch) + ((double)0.9 * ((colorMatchSum) / (double)(SAT_INTERVALS * HUE_INTERVALS)));
 		double closeness = offsetMatch[0].second;
-		matchDBList[i].second = 1 - (closeness * (double)10);
+		std::get<1>(matchDBList[i]) = 1 - (closeness * (double)10);
+		std::get<2>(matchDBList[i]) = offsetMatch[0].first;
 	}
 
 	std::sort(matchDBList.begin(), matchDBList.end(), sort_pred());

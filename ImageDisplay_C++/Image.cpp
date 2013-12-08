@@ -104,6 +104,43 @@ MyImage & MyImage::operator= (const MyImage &otherImage)
 
 }
 
+// = operator overload
+void MyImage::CopyImage (const MyImage &otherImage)
+{
+	Height = otherImage.Height;
+	Width  = otherImage.Width;
+	CurrentFrame = otherImage.CurrentFrame;
+
+	if (NumFrames == -1){
+		Data   = new char[Width*Height*3];
+		VideoData = new char[Width*Height*3*otherImage.NumFrames];
+	}
+	
+	NumFrames = otherImage.NumFrames;
+
+	strcpy( ImagePath, (char *)otherImage.ImagePath );
+
+	for ( int i=0; i<(Height*Width*3); i++ )
+	{
+		Data[i]	= otherImage.Data[i];
+	}
+	
+	for ( int i=0; i<(Height*Width*3*NumFrames); i++ )
+	{
+		VideoData[i]	= otherImage.VideoData[i];
+	}
+
+	for (int i=0 ; i<SAT_INTERVALS ; i++) {
+		for (int j=0 ; j<HUE_INTERVALS ; j++) {
+			ColorAnalysis[i][j] = otherImage.ColorAnalysis[i][j];
+		}
+	}	
+
+	BlackPixelAnalysis = otherImage.BlackPixelAnalysis;
+
+}
+
+
 
 // MyImage::ReadImage
 // Function to read the image given a path

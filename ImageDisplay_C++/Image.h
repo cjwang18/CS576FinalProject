@@ -38,8 +38,8 @@ class MyImage
 private:
 	int		Width;					// Width of Image
 	int		Height;					// Height of Image
-	unsigned long	NumFrames;		// Number of frames
-	unsigned long	CurrentFrame;	// Tracks which frame we're on
+	long	NumFrames;		// Number of frames
+	long	CurrentFrame;	// Tracks which frame we're on
 	char	ImagePath[_MAX_PATH];	// Image location
 	char*	Data;					// RGB data of the image
 	char*	VideoData;				// Holds all frames
@@ -57,6 +57,7 @@ public:
 
 	// operator overload
 	MyImage & operator= (const MyImage & otherImage);
+	void CopyImage (const MyImage & otherImage);
 
 	// Reader & Writer functions
 	void	setWidth(const int w)  { Width = w; }; 
