@@ -93,6 +93,8 @@ public:
     HRESULT Stop();
     HRESULT Reset();
     BOOL    IsSoundPlaying();
+	HRESULT SkipTo(DWORD position);
+	DWORD GetSize(){ return m_dwDSBufferSize; };
 };
 
 

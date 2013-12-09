@@ -38,8 +38,8 @@ class MyImage
 private:
 	int		Width;					// Width of Image
 	int		Height;					// Height of Image
-	long	NumFrames;		// Number of frames
-	long	CurrentFrame;	// Tracks which frame we're on
+	int		NumFrames;		// Number of frames
+	int		CurrentFrame;	// Tracks which frame we're on
 	char	ImagePath[_MAX_PATH];	// Image location
 	char*	Data;					// RGB data of the image
 	char*	VideoData;				// Holds all frames
@@ -62,8 +62,8 @@ public:
 	// Reader & Writer functions
 	void	setWidth(const int w)  { Width = w; }; 
 	void	setHeight(const int h) { Height = h; }; 
-	void	setNumFrames(const unsigned long nf) { NumFrames = nf; };
-	void	setCurrentFrame(const unsigned long cf) { CurrentFrame = cf; };
+	void	setNumFrames(const int nf) { NumFrames = nf; };
+	void	setCurrentFrame(const int cf) { CurrentFrame = cf; };
 	void	setImageData( const char *img ) { Data = (char *)img; };
 	void	setImagePath( const char *path) { strcpy(ImagePath, path); }
 	int		getWidth() { return Width; };
@@ -73,8 +73,8 @@ public:
 	int		getBlackPixelAnalysis() { return BlackPixelAnalysis; };
 	std::vector<double> getAvgHuePerFrame() { return AvgHuePerFrame; };
 
-	unsigned long getNumFrames() { return NumFrames; };
-	unsigned long getCurrentFrame() { return CurrentFrame; };
+	int		getNumFrames() { return NumFrames; };
+	int		getCurrentFrame() { return CurrentFrame; };
 	char*	getImageData() { return Data; };
 	char*	getVideoData() { return VideoData; };
 	char*	getImagePath() { return ImagePath; }

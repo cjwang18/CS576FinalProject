@@ -54,6 +54,7 @@ typedef void * POINTER_64;// PVOID64;
 #define ID_QUERY_TIMER 2001
 #define ID_MATCH_TIMER 2002
 #define ID_QUERY_AUDIO_TIMER 2003
+#define ID_MATCH_AUDIO_TIMER 2004
 
 // Global Variables:
 MyImage			inImage, outImage;				// image objects
@@ -64,10 +65,14 @@ TCHAR szWindowClass[MAX_LOADSTRING];			// The title bar text
 //-----------------------------------------------------------------------------
 // Defines, constants, and global variables
 //-----------------------------------------------------------------------------
-CSoundManager* g_pSoundManager = NULL;
-CSound*        g_pSound = NULL;
-BOOL           g_bBufferPaused;
-TCHAR		   AudioPath[_MAX_PATH] = TEXT("");
+CSoundManager* g_pQuerySoundManager = NULL;
+CSound*        g_pQuerySound = NULL;
+BOOL           g_bQueryBufferPaused;
+CSoundManager* g_pMatchSoundManager = NULL;
+CSound*        g_pMatchSound = NULL;
+BOOL           g_bMatchBufferPaused;
+TCHAR		   QueryAudioPath[_MAX_PATH] = TEXT("");
+TCHAR		   MatchAudioPath[_MAX_PATH] = TEXT("");
 HANDLE queryTimer = NULL;
 int queryTimerArg = 123;
 BOOL	queryPlaying = false;
@@ -87,6 +92,9 @@ HWND hwndMatchList;
 // Stores <name, percentage match> pair for each match video
 std::vector<std::tuple<std::string, double, int> > matchDBList;
 std::string currentSelectedMatchVideo;
+// Stores 2D vector of match scores per frame per match video
+std::vector< std::pair<std::string, std::vector<double> > > matchVideoScores;
+
 
 struct sort_pred {
     bool operator()(const std::tuple<std::string,double, int> &left, const std::tuple<std::string,double, int> &right) {
@@ -108,6 +116,7 @@ LRESULT CALLBACK	About(HWND, UINT, WPARAM, LPARAM);
 VOID CALLBACK TimerRoutine(PVOID, BOOLEAN);
 VOID PlaybackControl(int, PlaybackActions);
 VOID QueryCompare();
+VOID PaintHistogram();
 
 
 // Main entry point for a windows application
@@ -139,7 +148,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 	// Read in the image and its copy
 	char ImagePath[_MAX_PATH];
 
-	sscanf(lpCmdLine, "%s %s", &ImagePath, &AudioPath);
+	sscanf(lpCmdLine, "%s %s", &ImagePath, &QueryAudioPath);
 	inImage.setWidth(352);
 	inImage.setHeight(288);
 	if ( strstr(ImagePath, ".rgb" )==NULL )
@@ -255,43 +264,88 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    return TRUE;
 }
 
-HRESULT OnPlaySound( HWND hDlg ) 
+HRESULT OnPlayQuerySound( HWND hDlg ) 
 {
     HRESULT hr;
 
     BOOL bLooped = true;
 
-    if( g_bBufferPaused )
+    if( g_bQueryBufferPaused )
     {
         // Play the buffer since it is currently paused
         DWORD dwFlags = bLooped ? DSBPLAY_LOOPING : 0L;
-        if( FAILED( hr = g_pSound->Play( 0, dwFlags ) ) )
+        if( FAILED( hr = g_pQuerySound->Play( 0, dwFlags ) ) )
             return DXTRACE_ERR( TEXT("Play"), hr );
 
         // Update the UI controls to show the sound as playing
-        g_bBufferPaused = FALSE;
+        g_bQueryBufferPaused = FALSE;
         //EnablePlayUI( hDlg, FALSE );
     }
     else
     {
-        if( g_pSound->IsSoundPlaying() )
+        if( g_pQuerySound->IsSoundPlaying() )
         {
             // To pause, just stop the buffer, but don't reset the position
-            if( g_pSound )
-                g_pSound->Stop();
+            if( g_pQuerySound )
+                g_pQuerySound->Stop();
 
-            g_bBufferPaused = TRUE;
+            g_bQueryBufferPaused = TRUE;
             //SetDlgItemText( hDlg, IDC_PLAY, "Play" );
         }
         else
         {
             // The buffer is not playing, so play it again
             DWORD dwFlags = bLooped ? DSBPLAY_LOOPING : 0L;
-            if( FAILED( hr = g_pSound->Play( 0, dwFlags ) ) )
+            if( FAILED( hr = g_pQuerySound->Play( 0, dwFlags ) ) )
                 return DXTRACE_ERR( TEXT("Play"), hr );
 
             // Update the UI controls to show the sound as playing
-            g_bBufferPaused = FALSE;
+            g_bQueryBufferPaused = FALSE;
+            //EnablePlayUI( hDlg, FALSE );
+        }
+    }
+
+    return S_OK;
+}
+
+
+HRESULT OnPlayMatchSound( HWND hDlg ) 
+{
+    HRESULT hr;
+
+    BOOL bLooped = true;
+
+    if( g_bMatchBufferPaused )
+    {
+        // Play the buffer since it is currently paused
+        DWORD dwFlags = bLooped ? DSBPLAY_LOOPING : 0L;
+        if( FAILED( hr = g_pMatchSound->Play( 0, dwFlags ) ) )
+            return DXTRACE_ERR( TEXT("Play"), hr );
+
+        // Update the UI controls to show the sound as playing
+        g_bMatchBufferPaused = FALSE;
+        //EnablePlayUI( hDlg, FALSE );
+    }
+    else
+    {
+        if( g_pMatchSound->IsSoundPlaying() )
+        {
+            // To pause, just stop the buffer, but don't reset the position
+            if( g_pMatchSound )
+                g_pMatchSound->Stop();
+
+            g_bMatchBufferPaused = TRUE;
+            //SetDlgItemText( hDlg, IDC_PLAY, "Play" );
+        }
+        else
+        {
+            // The buffer is not playing, so play it again
+            DWORD dwFlags = bLooped ? DSBPLAY_LOOPING : 0L;
+            if( FAILED( hr = g_pMatchSound->Play( 0, dwFlags ) ) )
+                return DXTRACE_ERR( TEXT("Play"), hr );
+
+            // Update the UI controls to show the sound as playing
+            g_bMatchBufferPaused = FALSE;
             //EnablePlayUI( hDlg, FALSE );
         }
     }
@@ -331,9 +385,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			// Create a static IDirectSound in the CSound class.  
 			// Set coop level to DSSCL_PRIORITY, and set primary buffer 
 			// format to stereo, 22kHz and 16-bit output.
-			g_pSoundManager = new CSoundManager();
+			g_pQuerySoundManager = new CSoundManager();
 
-			if( FAILED( hr = g_pSoundManager->Initialize( hWnd, DSSCL_PRIORITY, 1, 44100, 16 ) ) )	//  2, 22050, 16
+			if( FAILED( hr = g_pQuerySoundManager->Initialize( hWnd, DSSCL_PRIORITY, 1, 44100, 16 ) ) )	//  2, 22050, 16
 			{
 				DXTRACE_ERR( TEXT("Initialize"), hr );
 				MessageBox( hWnd, "Error initializing DirectSound.  Sample will now exit.", 
@@ -342,21 +396,55 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				return false;
 			}
 
-			g_bBufferPaused = FALSE;
+			g_bQueryBufferPaused = FALSE;
 
 			// Create a timer, so we can check for when the soundbuffer is stopped
 			SetTimer( hWnd, ID_QUERY_AUDIO_TIMER, 250, NULL );
 
-			if( g_pSound )
+			if( g_pQuerySound )
 			{
-				g_pSound->Stop();
-				g_pSound->Reset();
+				g_pQuerySound->Stop();
+				g_pQuerySound->Reset();
 			}
 
-			SAFE_DELETE( g_pSound );
+			SAFE_DELETE( g_pQuerySound );
 
 			// Load the wave file into a DirectSound buffer
-			if( FAILED( hr = g_pSoundManager->Create( &g_pSound, AudioPath, 0, GUID_NULL ) ) )
+			if( FAILED( hr = g_pQuerySoundManager->Create( &g_pQuerySound, QueryAudioPath, 0, GUID_NULL ) ) )
+			{
+				// Not a critical failure, so just update the status
+				DXTRACE_ERR_NOMSGBOX( TEXT("Create"), hr );
+				//SetDlgItemText( hWnd, IDC_FILENAME, TEXT("Could not create sound buffer.") );
+				return false; 
+			}
+
+			// Audio for Match Video
+			g_pMatchSoundManager = new CSoundManager();
+
+			if( FAILED( hr = g_pMatchSoundManager->Initialize( hWnd, DSSCL_PRIORITY, 1, 44100, 16 ) ) )	//  2, 22050, 16
+			{
+				DXTRACE_ERR( TEXT("Initialize"), hr );
+				MessageBox( hWnd, "Error initializing DirectSound.  Sample will now exit.", 
+									"DirectSound Sample", MB_OK | MB_ICONERROR );
+				EndDialog( hWnd, IDABORT );
+				return false;
+			}
+
+			g_bMatchBufferPaused = FALSE;
+
+			// Create a timer, so we can check for when the soundbuffer is stopped
+			SetTimer( hWnd, ID_MATCH_AUDIO_TIMER, 250, NULL );
+
+			if( g_pMatchSound )
+			{
+				g_pMatchSound->Stop();
+				g_pMatchSound->Reset();
+			}
+
+			SAFE_DELETE( g_pMatchSound );
+
+			// Load the wave file into a DirectSound buffer
+			if( FAILED( hr = g_pMatchSoundManager->Create( &g_pMatchSound, QueryAudioPath, 0, GUID_NULL ) ) )
 			{
 				// Not a critical failure, so just update the status
 				DXTRACE_ERR_NOMSGBOX( TEXT("Create"), hr );
@@ -370,7 +458,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				"Match List",
 				WS_CHILD | WS_VISIBLE | WS_BORDER | LBS_NOTIFY | LBS_HASSTRINGS,
 				outImage.getWidth()+55, 10,
-				200, 120,
+				200, 100,
 				hWnd,
 				(HMENU) IDC_MATCH_LIST,
 				GetModuleHandle(NULL),
@@ -403,8 +491,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				"Trackbar Control", // title (caption) 
 				WS_CHILD | WS_VISIBLE | 
 				TBS_NOTICKS | TBS_BOTH, // style 
-				outImage.getWidth()+55, 150, // position 
-				352, 25, // size 
+				outImage.getWidth()+50, 170, // position 
+				362, 25, // size 
 				hWnd, // parent window 
 				(HMENU)IDC_MATCH_SLIDER, // control identifier 
 				GetModuleHandle(NULL), // instance 
@@ -419,7 +507,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				WS_TABSTOP|WS_VISIBLE|
 				WS_CHILD|BS_DEFPUSHBUTTON,
 				25,
-				190 + inImage.getHeight(),
+				210 + inImage.getHeight(),
 				BUTTON_WIDTH,
 				BUTTON_HEIGHT,
 				hWnd,
@@ -434,7 +522,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				WS_TABSTOP|WS_VISIBLE|
 				WS_CHILD|BS_DEFPUSHBUTTON,
 				25 + BUTTON_WIDTH + 26,
-				190 + inImage.getHeight(),
+				210 + inImage.getHeight(),
 				BUTTON_WIDTH,
 				BUTTON_HEIGHT,
 				hWnd,
@@ -448,7 +536,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				WS_TABSTOP|WS_VISIBLE|
 				WS_CHILD|BS_DEFPUSHBUTTON,
 				25 + (BUTTON_WIDTH + 26) * 2,
-				190 + inImage.getHeight(),
+				210 + inImage.getHeight(),
 				BUTTON_WIDTH,
 				BUTTON_HEIGHT,
 				hWnd,
@@ -462,7 +550,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				WS_TABSTOP|WS_VISIBLE|
 				WS_CHILD|BS_DEFPUSHBUTTON,
 				outImage.getWidth()+55,
-				190 + outImage.getHeight(),
+				210 + outImage.getHeight(),
 				BUTTON_WIDTH,
 				BUTTON_HEIGHT,
 				hWnd,
@@ -477,7 +565,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				WS_TABSTOP|WS_VISIBLE|
 				WS_CHILD|BS_DEFPUSHBUTTON,
 				outImage.getWidth()+55 + BUTTON_WIDTH + 26,
-				190 + outImage.getHeight(),
+				210 + outImage.getHeight(),
 				BUTTON_WIDTH,
 				BUTTON_HEIGHT,
 				hWnd,
@@ -491,7 +579,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				WS_TABSTOP|WS_VISIBLE|
 				WS_CHILD|BS_DEFPUSHBUTTON,
 				outImage.getWidth()+55 + (BUTTON_WIDTH + 26) * 2,
-				190 + outImage.getHeight(),
+				210 + outImage.getHeight(),
 				BUTTON_WIDTH,
 				BUTTON_HEIGHT,
 				hWnd,
@@ -501,20 +589,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			break;
 		case WM_HSCROLL:
-			scrubberPos = SendMessage(hwndTrack, TBM_GETPOS, 0, 0);
-			outImage.setCurrentFrame(scrubberPos);
-			outImage.Modify();
-			InvalidateRect(hWnd, &rt, false);
+			{
+				scrubberPos = SendMessage(hwndTrack, TBM_GETPOS, 0, 0);
+				outImage.setCurrentFrame(scrubberPos);
+				outImage.Modify();
+				InvalidateRect(hWnd, &rt, false);
+
+				DWORD pos, size;
+				HRESULT wat;
+																					
+				PlaybackControl(1, PlaybackActions::PLAY);
+				PlaybackControl(1, PlaybackActions::PAUSE);
+				size = g_pMatchSound->GetSize();
+				DWORD calculation = (DWORD)((double)scrubberPos/outImage.getNumFrames() * size);
+				g_pMatchSound->GetBuffer(0)->SetCurrentPosition(calculation);
+			}
 			break;
 		case WM_TIMER:
-			/*switch(wParam) {
-				case ID_QUERY_TIMER:
-					inImage.Modify();
-					break;
-				case ID_MATCH_TIMER:
-					outImage.Modify();
-					break;
-			}*/
 			InvalidateRect(hWnd, &rt, false);
 			break;
 		case WM_COMMAND:
@@ -540,21 +631,60 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 										//return FALSE;
 									} else {
 										currentSelectedMatchVideo = std::get<0>(matchDBList[sel-1]);
-										loadedVideos[sel-1].CopyImage( outImage);
+										loadedVideos[sel-1] = ( outImage);
 										SendMessage(hwndTrack, TBM_SETRANGE, TRUE, MAKELONG(0, outImage.getNumFrames()-1));
 										SendMessage(hwndTrack, TBM_SETPOS, TRUE, std::get<2>(matchDBList[sel-1]));
 										outImage.setCurrentFrame(std::get<2>(matchDBList[sel-1]));
 										outImage.Modify();
 									}
+									PaintHistogram();
 									InvalidateRect(hWnd, &rt, false);
 								} else {
 									// Already loaded
-									outImage.CopyImage( loadedVideos[sel-1]);
+									currentSelectedMatchVideo = std::get<0>(matchDBList[sel-1]);
+									outImage = (loadedVideos[sel-1]);
 									SendMessage(hwndTrack, TBM_SETRANGE, TRUE, MAKELONG(0, outImage.getNumFrames()-1));
 									SendMessage(hwndTrack, TBM_SETPOS, TRUE, std::get<2>(matchDBList[sel-1]));
 									outImage.setCurrentFrame(std::get<2>(matchDBList[sel-1]));
 									outImage.Modify();
+									PaintHistogram();
+									InvalidateRect(hWnd, &rt, false);
 								}
+								// AUDIO TODO
+								std::stringstream ss;
+								ss << "matchDB\\" << std::get<0>(matchDBList[sel-1]) << ".wav";
+								
+
+								int counter = 0;
+								while (counter < ss.str().length()){
+									MatchAudioPath[counter] = ss.str().at(counter);
+									counter++;
+								}
+
+								MatchAudioPath[counter] = '\0';
+
+								if( g_pMatchSound )
+								{
+									g_pMatchSound->Stop();
+									g_pMatchSound->Reset();
+								}
+
+								SAFE_DELETE( g_pMatchSound );
+
+								
+
+
+								// Load the wave file into a DirectSound buffer
+								if( FAILED( hr = g_pMatchSoundManager->Create( &g_pMatchSound, MatchAudioPath, 0, GUID_NULL ) ) )
+								{
+									// Not a critical failure, so just update the status
+									DXTRACE_ERR_NOMSGBOX( TEXT("Create"), hr );
+									//SetDlgItemText( hWnd, IDC_FILENAME, TEXT("Could not create sound buffer.") );
+									return false; 
+								}
+
+								
+
 							} else if ((currentSelectedMatchVideo.compare(std::get<0>(matchDBList[sel-1])) == 0)) {
 								SendMessage(hwndTrack, TBM_SETPOS, TRUE, std::get<2>(matchDBList[sel-1]));
 								outImage.setCurrentFrame(std::get<2>(matchDBList[sel-1]));
@@ -562,6 +692,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 								InvalidateRect(hWnd, &rt, false);
 							}
 						} 
+
+						DWORD pos, size;
+						HRESULT wat;
+																					
+						PlaybackControl(1, PlaybackActions::PLAY);
+						PlaybackControl(1, PlaybackActions::PAUSE);
+						size = g_pMatchSound->GetSize();
+						DWORD calculation = (DWORD)((double)std::get<2>(matchDBList[sel-1])/outImage.getNumFrames() * size);
+						g_pMatchSound->GetBuffer(0)->SetCurrentPosition(calculation);
+								
+						//PlaybackControl(1, PlaybackActions::PAUSE);
+						//PlaybackControl(1, PlaybackActions::PLAY);
+
 						CWindow myWindow;
 						myWindow.Attach(hWnd);
 						HWND hWndLeftFocus = myWindow.SetFocus();
@@ -571,57 +714,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					DialogBox(hInst, (LPCTSTR)IDD_ABOUTBOX, hWnd, (DLGPROC)About);
 					break;
 				case IDC_QUERY_PLAY_BUTTON:
-					//SetTimer(hWnd, ID_QUERY_TIMER, 30, NULL );
-					//if (!queryPlaying) {
-					//	videoPlaying[0] = true;
-					//	queryPlaying = true;
-					//	CreateTimerQueueTimer(
-					//		&videoTimer[0],
-					//		NULL,
-					//		(WAITORTIMERCALLBACK)TimerRoutine,
-					//		0,
-					//		0,
-					//		40,
-					//		WT_EXECUTEINTIMERTHREAD);
-					//
-					//	// The 'play'/'pause' button was pressed
-					//	if( FAILED( hr = OnPlaySound( hWnd ) ) )
-					//	{
-					//		DXTRACE_ERR( TEXT("OnPlaySound"), hr );
-					//		MessageBox( hWnd, "Error playing DirectSound buffer. "
-					//					"Sample will now exit.", "DirectSound Sample", 
-					//					MB_OK | MB_ICONERROR );
-					//		EndDialog( hWnd, IDABORT );
-					//	}
-					//}
 					PlaybackControl(0, PlaybackActions::PLAY);
 					break;
 				case IDC_QUERY_PAUSE_BUTTON:
-					/*if (queryPlaying) {
-						queryPlaying = false;
-						if( g_pSound )
-							g_pSound->Stop();
-						KillTimer (hWnd, ID_QUERY_TIMER);
-
-						DeleteTimerQueueTimer(NULL, videoTimer[0], NULL);
-					}
-					*/
 					PlaybackControl(0, PlaybackActions::PAUSE);
 					break;
 				case IDC_QUERY_STOP_BUTTON:
-					/*if (queryPlaying) {
-						DeleteTimerQueueTimer(NULL, videoTimer[0], NULL);
-					}
-						if( g_pSound )
-						{
-							g_pSound->Stop();
-							g_pSound->Reset();
-						}
-						KillTimer (hWnd, ID_QUERY_TIMER);
-						inImage.setCurrentFrame(0);
-						inImage.Modify();
-						InvalidateRect(hWnd, &rt, false);
-						queryPlaying = false;*/
 					PlaybackControl(0, PlaybackActions::STOP);
 					break;
 				case IDC_MATCH_PLAY_BUTTON:
@@ -648,12 +746,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				hdc = BeginPaint(hWnd, &ps);
 				// TODO: Add any drawing code here...
-				/*char text[1000];
-				strcpy(text, "Original image (Left)  Image after modification (Right)\n");
+				char text[1000];
+
+				std::stringstream sstream;
+
+				sstream << "\n\n\n\n\n                                  Query: " << inImage.getImagePath();
+				strcpy(text, sstream.str().c_str());
 				DrawText(hdc, text, strlen(text), &rt, DT_LEFT);
-				strcpy(text, "\nUpdate program with your code to modify input image");
+
+				/*strcpy(text, "\nUpdate program with your code to modify input image");
 				DrawText(hdc, text, strlen(text), &rt, DT_LEFT);*/
 
+				
 				BITMAPINFO bmi;
 				CBitmap bitmap;
 				memset(&bmi,0,sizeof(bmi));
@@ -666,12 +770,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				bmi.bmiHeader.biSizeImage = inImage.getWidth()*inImage.getHeight();
 
 				SetDIBitsToDevice(hdc,
-								  25,175,inImage.getWidth(),inImage.getHeight(),
+								  25,195,inImage.getWidth(),inImage.getHeight(),
 								  0,0,0,inImage.getHeight(),
 								  inImage.getImageData(),&bmi,DIB_RGB_COLORS);
 
 				SetDIBitsToDevice(hdc,
-								  outImage.getWidth()+55,175,outImage.getWidth(),outImage.getHeight(),
+								  outImage.getWidth()+55,195,outImage.getWidth(),outImage.getHeight(),
 								  0,0,0,outImage.getHeight(),
 								  outImage.getImageData(),&bmi,DIB_RGB_COLORS);
 
@@ -687,6 +791,85 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
    }
    return 0;
 }
+
+VOID PaintHistogram(){
+    HPEN pen, oldPen;
+ 
+	HDC hdc =  GetDC(hWnd);                        
+    pen = CreatePen(PS_SOLID, 1024, RGB(255, 255, 255));    
+    oldPen = (HPEN)SelectObject(hdc, pen);       
+
+	MoveToEx(hdc, 0, 0, NULL);
+	LineTo(hdc, 800, 600);
+	
+	pen = CreatePen(PS_SOLID, 2, RGB(0, 0, 150));   
+	oldPen = (HPEN)SelectObject(hdc, pen);   
+    MoveToEx(hdc, 150, 150, NULL);         
+    int histIntervals = 70;
+	int histLeft = outImage.getWidth()+55;
+	int histBottom = 160;
+	int histTop = 120;
+	int histRight = histLeft + 350;
+	// Draw rectangle
+	// Top edge
+	MoveToEx(hdc, histLeft, histTop, NULL);
+	LineTo(hdc, histRight, histTop);
+	// Right edge
+	MoveToEx(hdc, histRight, histTop, NULL);
+	LineTo(hdc, histRight, histBottom);
+	// Bottom edge
+	MoveToEx(hdc, histLeft, histBottom, NULL);
+	LineTo(hdc, histRight, histBottom);
+	// Left edge
+	MoveToEx(hdc, histLeft, histBottom, NULL);
+	LineTo(hdc, histLeft, histTop);
+				
+	//if (currentSelectedMatchVideo.compare("") != 0) {
+	int currentMatchVideoIndex = 0;
+	for (currentMatchVideoIndex = 0 ; currentMatchVideoIndex < matchVideoScores.size() ; currentMatchVideoIndex++) {
+		if (currentSelectedMatchVideo.compare(matchVideoScores[currentMatchVideoIndex].first) == 0){
+			break;
+		}
+	}
+
+	//matchVideoScores[currentMatchVideoIndex].second; //Vector of doubles
+
+	int framesInInterval = matchVideoScores[currentMatchVideoIndex].second.size() / histIntervals;
+	double min = 9999999;
+	double max = -1;
+	std::vector<double> avgVector;
+	for (int i = 0 ; i < histIntervals ; i++) {
+		double sum = 0;
+		for (int j = 0 ; j < framesInInterval ; j++) {
+			sum += matchVideoScores[currentMatchVideoIndex].second[j+i*framesInInterval];
+		}
+		double avg = sum / (double)framesInInterval;
+
+		if (avg < min){
+			min = avg;
+		}
+		if (avg > max){
+			max = avg;
+		}
+
+		avgVector.push_back(avg);
+
+	}
+
+	for (int i = 0 ; i < histIntervals ; i++) {			
+		for (int j = 0 ; j < 352/histIntervals ; j++) {
+			MoveToEx(hdc, j+histLeft+i*(352/histIntervals), histBottom, NULL);
+			LineTo(hdc, j+histLeft+i*(352/histIntervals), (histBottom - (histBottom - histTop - 5) * (1 - (avgVector[i] - min)/(max - min))));
+		}
+	}       
+
+    SelectObject(hdc, oldPen); 
+    DeleteObject(pen);
+
+	PAINTSTRUCT pntS;
+    EndPaint(hWnd, &pntS);
+}
+
 
 
 
@@ -736,9 +919,18 @@ VOID PlaybackControl(int index, PlaybackActions action)
 				
 				if (index == 0){
 					// The 'play'/'pause' button was pressed
-					if( FAILED( hr = OnPlaySound( hWnd ) ) )
+					if( FAILED( hr = OnPlayQuerySound( hWnd ) ) )
 					{
-						DXTRACE_ERR( TEXT("OnPlaySound"), hr );
+						DXTRACE_ERR( TEXT("OnPlayQuerySound"), hr );
+						MessageBox( hWnd, "Error playing DirectSound buffer. "
+									"Sample will now exit.", "DirectSound Sample", 
+									MB_OK | MB_ICONERROR );
+						EndDialog( hWnd, IDABORT );
+					}
+				} else {
+					if( FAILED( hr = OnPlayMatchSound( hWnd ) ) )
+					{
+						DXTRACE_ERR( TEXT("OnPlayMatchSound"), hr );
 						MessageBox( hWnd, "Error playing DirectSound buffer. "
 									"Sample will now exit.", "DirectSound Sample", 
 									MB_OK | MB_ICONERROR );
@@ -751,8 +943,11 @@ VOID PlaybackControl(int index, PlaybackActions action)
 			if (videoPlaying[index]) {
 				
 				if(index == 0){
-					if( g_pSound )
-						g_pSound->Stop();
+					if( g_pQuerySound )
+						g_pQuerySound->Stop();
+				} else {
+					if( g_pMatchSound )
+						g_pMatchSound->Stop();
 				}
 
 				if (!(videoPlaying[0] && videoPlaying[1])) {
@@ -768,10 +963,16 @@ VOID PlaybackControl(int index, PlaybackActions action)
 			}
 
 			if (index == 0) {
-				if( g_pSound )
+				if( g_pQuerySound )
 				{
-					g_pSound->Stop();
-					g_pSound->Reset();
+					g_pQuerySound->Stop();
+					g_pQuerySound->Reset();
+				}
+			} else {
+				if( g_pMatchSound )
+				{
+					g_pMatchSound->Stop();
+					g_pMatchSound->Reset();
 				}
 			}
 
@@ -892,27 +1093,46 @@ VOID QueryCompare()
 		}
 		fin.close();
 
-
 		// Stores <int, double> pair corresponding to <which offset frame, match closeness>
 		std::vector<std::pair<int, double>> offsetMatch;
 		// Assumes match video longer than query video
 		std::vector<double> queryAvgHue = inImage.getAvgHuePerFrame();
-		for (int offset = 0 ; offset <= (matchAvgHue.size() - queryAvgHue.size()) ; offset++)
+		// Stores match score per frame
+		std::vector<double> matchScore;
+
+		int neg = 0;
+		for (int i = 0 ; i < matchAvgHue.size() ; i++)
 		{
 			double dif = 0;
-			for (int i = 0 ; i < queryAvgHue.size() ; i++)
-			{
-				dif += abs(queryAvgHue[i] - matchAvgHue[i+offset]);
+			int framesProcessed = 0;
+
+			if (i > (matchAvgHue.size() - queryAvgHue.size())){
+				neg++;
 			}
-			offsetMatch.push_back(std::make_pair(offset, dif / (double)queryAvgHue.size()));
+
+			for (int j = 0 ; j < (queryAvgHue.size()-neg) ; j++)
+			{
+				dif += abs(queryAvgHue[j] - matchAvgHue[i+j]);
+				framesProcessed++;
+			}
+			offsetMatch.push_back(std::make_pair(i, dif / (double)framesProcessed));
+			matchScore.push_back(dif / (double)framesProcessed);
 		}
+
+		// Add score of current match video to 2D vector matchVideoScores
+		matchVideoScores.push_back(std::make_pair(std::get<0>(matchDBList[i]), matchScore));
 
 		// offsetMatch now contains match % at each frame offset
 		// sort it
 		std::sort(offsetMatch.begin(), offsetMatch.end(), sort_avg_hue());
 		// offsetMatch[0].first is the offset, offsetMatch[0].second is the "closeness" calculation
 
-		// Color Analysis
+		// Black Pixel Analysis
+		double qPercent = inImage.getBlackPixelAnalysis()/(double)((inImage.getWidth()/SUBSAMPLE_FACTOR)*(inImage.getHeight()/SUBSAMPLE_FACTOR)*inImage.getNumFrames());
+		double mPercent = BlackPixelAnalysis / (double)pixelsProcessed;
+		double blackMatch = abs(qPercent - mPercent);
+
+		// Hue Analysis
 		for (int row = 0; row < SAT_INTERVALS; row++){
 			for (int col = 0; col < HUE_INTERVALS; col++){
 				double qPercent = inImage.getColorAnalysisVal(row,col)/(double)((inImage.getWidth()/SUBSAMPLE_FACTOR)*(inImage.getHeight()/SUBSAMPLE_FACTOR)*inImage.getNumFrames());
@@ -922,29 +1142,15 @@ VOID QueryCompare()
 			}
 		}
 
-		// Black Pixel Analysis
-		double qPercent = inImage.getBlackPixelAnalysis()/(double)((inImage.getWidth()/SUBSAMPLE_FACTOR)*(inImage.getHeight()/SUBSAMPLE_FACTOR)*inImage.getNumFrames());
-		double mPercent = BlackPixelAnalysis / (double)pixelsProcessed;
-		double blackMatch = abs(qPercent - mPercent);
-
-		// TODO: integrate
-		//double closeness = ((double)0.1 * blackMatch) + ((double)0.9 * ((colorMatchSum) / (double)(SAT_INTERVALS * HUE_INTERVALS)));
-		double closeness = offsetMatch[0].second;
-		std::get<1>(matchDBList[i]) = 1 - (closeness * (double)10);
+		// Calculate match score
+		double blackCloseness = 1 - (blackMatch);
+		double hueCloseness = 1 - ((colorMatchSum) / (double)(SAT_INTERVALS * HUE_INTERVALS));
+		double offsetCloseness = 1 - offsetMatch[0].second;
+		std::get<1>(matchDBList[i]) = 0.8f * offsetCloseness + 0.1f * blackCloseness + 0.1f * hueCloseness;
 		std::get<2>(matchDBList[i]) = offsetMatch[0].first;
 	}
 
 	std::sort(matchDBList.begin(), matchDBList.end(), sort_pred());
 
-	/*char *lpBuffer = new char[256];
-	strcpy_s(lpBuffer, 256, "test\0");
-	SendMessage(hwndMatchList, LB_INSERTSTRING, 0, (LPARAM) lpBuffer);
-	delete [] lpBuffer;*/
-
-	//TCHAR* temp = (TCHAR*)matchDBList[0].first.c_str();
-	//LPCWSTR pstr = (LPCWSTR)matchDBList[0].first.c_str(); //convert to LPCWSTR so that it could be converted to LPARAM on the next line 
-	
-
-	//SendMessageA(hwndMatchList, LB_ADDSTRING, 0, (LPARAM) (LPCSTR)matchDBList[0].first.c_str());
 }
 

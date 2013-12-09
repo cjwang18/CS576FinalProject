@@ -311,7 +311,17 @@ LFail:
 
 
 
+HRESULT CSound::SkipTo(DWORD position){
+	if( m_apDSBuffer == NULL )
+        return CO_E_NOTINITIALIZED;
 
+    HRESULT hr = 0;
+
+    for( DWORD i=0; i<m_dwNumBuffers; i++ )
+        hr |= m_apDSBuffer[i]->SetCurrentPosition( position );
+
+    return hr;
+}
 
 
 
